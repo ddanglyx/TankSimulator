@@ -33,6 +33,7 @@ public class TankSimulation {
     }
 
     public void run() {
+        System.out.println("test");
         init();
         loop();
         GLFW.glfwDestroyWindow(window);
@@ -818,5 +819,5 @@ class Bullet {
     //     GL11.glPopMatrix();
     // }
 
-    
+
 }
