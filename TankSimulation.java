@@ -784,3 +784,39 @@ class Terrain {
         return Math.abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
     }
 }
+
+class Bullet {
+    // private float x, y, z; // Bullet's position
+    // private float speed = 0.1f; // Speed of the bullet
+    // private float directionX, directionY, directionZ; // Direction of the bullet
+
+    // public Bullet(float x, float y, float z, float directionX, float directionY, float directionZ) {
+    //     this.x = x;
+    //     this.y = y;
+    //     this.z = z;
+    //     this.directionX = directionX;
+    //     this.directionY = directionY;
+    //     this.directionZ = directionZ;
+    // }
+
+    // public void update() {
+    //     x += directionX * speed;
+    //     y += directionY * speed;
+    //     z += directionZ * speed;
+    // }
+
+    // public void render() {
+    //     GL11.glPushMatrix();
+    //     GL11.glTranslatef(x, y, z);
+    //     GL11.glColor3f(1.0f, 0.0f, 0.0f); // Red color for the bullet
+    //     GL11.glBegin(GL11.GL_QUADS);
+    //     GL11.glVertex3f(-0.1f, -0.1f, -0.1f);
+    //     GL11.glVertex3f(0.1f, -0.1f, -0.1f);
+    //     GL11.glVertex3f(0.1f, 0.1f, -0.1f);
+    //     GL11.glVertex3f(-0.1f, 0.1f, -0.1f);
+    //     GL11.glEnd();
+    //     GL11.glPopMatrix();
+    // }
+
+    
+}
