@@ -1,5 +1,7 @@
 // javac GameServer.java
 // java GameServer
+// TankSimulation Game Server
+// This is a simple Java game server that allows two players to connect and communicate with each other
 
 import java.io.*;
 import java.net.*;
@@ -8,8 +10,7 @@ import java.util.*;
 public class GameServer
 {
     private static final int PORT = 12345; // Port number for the server
-    private static final int MAX_PLAYERS = 4; // Maximum number of players
-    private static final int TEAM_SIZE = 2; // Number of players per team
+    private static final int MAX_PLAYERS = 2; // Maximum number of players
 
     private ServerSocket serverSocket;
     private List<ClientHandler> clients = new ArrayList<>(); // List of connected clients
@@ -26,7 +27,7 @@ public class GameServer
             serverSocket = new ServerSocket(PORT);
             System.out.println("Game server started on port " + PORT);
 
-            while(clients.size() < MAX_PLAYERS) // Accept clients until max players reached
+            while (clients.size() < MAX_PLAYERS) // Accept clients until max players reached
             {
                 Socket clientSocket = serverSocket.accept(); // Accept a new client connection
                 ClientHandler clientHandler = new ClientHandler(clientSocket, this); // Create a new client handler
@@ -36,10 +37,9 @@ public class GameServer
                 System.out.println("Player connected: " + clientSocket.getInetAddress());
             }
 
-            System.out.println("Maximum players reached. No longer accept");
+            System.out.println("Maximum players reached. No longer accepting connections.");
         }
-
-        catch(IOException e)
+        catch (IOException e)
         {
             e.printStackTrace();
         }
@@ -49,7 +49,7 @@ public class GameServer
     {
         for (ClientHandler client : clients)
         {
-            if(client != sender)
+            if (client != sender) // Send the message to the other player
             {
                 client.sendMessage(message);
             }
@@ -62,25 +62,10 @@ public class GameServer
         System.out.println("Player disconnected: " + clientHandler.getClientName());
     }
 
-    public synchronized String assignTeam(ClientHandler clientHandler)
+    // Add a getter method for the clients list
+    public synchronized List<ClientHandler> getClients()
     {
-        long team1Count = clients.stream().filter(c -> "Team 1".equals(c.getTeam())).count();
-        long team2Count = clients.stream().filter(c -> "Team 2".equals(c.getTeam())).count();
-
-        if(team1Count < TEAM_SIZE)
-        {
-            clientHandler.setTeam("Team 1");
-            return "Team 1";
-        }
-        else if (team2Count < TEAM_SIZE)
-        {
-            clientHandler.setTeam("Team 2");
-            return "Team 2";
-        }
-        else 
-        {
-            return "Spectator"; // In case teams are full
-        }
+        return clients;
     }
 }
 
@@ -91,7 +76,6 @@ class ClientHandler implements Runnable
     private PrintWriter out;
     private BufferedReader in;
     private String clientName;
-    private String team;
 
     public ClientHandler(Socket socket, GameServer server)
     {
@@ -104,24 +88,36 @@ class ClientHandler implements Runnable
     {
         try
         {
-            in = new BufferedReader (new InputStreamReader(socket.getInputStream()));
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
 
-            // Get player name 
-            out.println("Enter your name: ");
-
+            // Get player name
+            // out.println("Enter your name: ");
             clientName = in.readLine();
-            team = server.assignTeam(this);
-            out.println("You are assigned to " + team);
+            System.out.println("Player joined: " + clientName);
+
+            // Notify the player that the game is ready if both players are connected
+            if (server.getClients().size() == 2)
+            {
+                // Get the opponent's name
+                String opponentName = server.getClients().get(0) == this
+                    ? server.getClients().get(1).getClientName()
+                    : server.getClients().get(0).getClientName();
+
+                // Notify both players
+                for (ClientHandler client : server.getClients())
+                {
+                    client.sendMessage("Game is starting! You are playing against " + opponentName);
+                }
+            }
 
             String message;
             while ((message = in.readLine()) != null)
             {
-                System.out.println(clientName + " (" + team + ") : " + message);
-                server.broadcast(clientName + " (" + team + ") : " + message, this);
+                System.out.println(clientName + ": " + message);
+                server.broadcast(clientName + ": " + message, this); // Relay the message to the other player
             }
         }
-
         catch (IOException e)
         {
             e.printStackTrace();
@@ -133,7 +129,6 @@ class ClientHandler implements Runnable
                 server.removeClient(this);
                 socket.close();
             }
-
             catch (IOException e)
             {
                 e.printStackTrace();
@@ -149,15 +144,5 @@ class ClientHandler implements Runnable
     public String getClientName()
     {
         return clientName;
-    }
-
-    public String getTeam()
-    {
-        return team;
-    }
-
-    public void setTeam(String team)
-    {
-        this.team = team;
     }
 }
