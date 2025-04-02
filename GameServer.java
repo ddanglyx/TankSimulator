@@ -100,14 +100,16 @@ class ClientHandler implements Runnable
             if (server.getClients().size() == 2)
             {
                 // Get the opponent's name
-                String opponentName = server.getClients().get(0) == this
-                    ? server.getClients().get(1).getClientName()
-                    : server.getClients().get(0).getClientName();
+                // String opponentName = server.getClients().get(0) == this
+                //     ? server.getClients().get(1).getClientName()
+                //     : server.getClients().get(0).getClientName();
 
                 // Notify both players
                 for (ClientHandler client : server.getClients())
                 {
-                    client.sendMessage("Game is starting! You are playing against " + opponentName);
+                    client.sendMessage("Game is starting!"); 
+                    // You are playing against " + opponentName);
+                    
                 }
             }
 
