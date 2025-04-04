@@ -285,10 +285,10 @@ public class TankSimulation {
         }
 
         // Turret rotation control
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_Q) == GLFW.GLFW_PRESS) {
+        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS) {
             tank.rotateTurretLeft();  // Rotate turret to the left
         }
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_E) == GLFW.GLFW_PRESS) {
+        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS) {
             tank.rotateTurretRight();  // Rotate turret to the right
         }
     }
@@ -304,10 +304,10 @@ class Tank {
     private float acceleration = 0.01f;
     private float friction = 0.98f;
     private float turnSpeed = 2.0f; // Speed of turning
+    private float width = 2.31f; // Width of the tank body (added this variable)
     // New member variables for turret
     private float turretAngle = 0.0f;  // Turret rotation angle (initially facing forward)
     private float turretRotationSpeed = 2.0f;  // Speed at which the turret rotates (adjust as needed)
-
     private float barrelElevation = 0.0f;  // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f;  // Speed of barrel movement
     private final float MIN_ELEVATION = -10.0f;  // Minimum elevation angle (downward)
@@ -389,24 +389,43 @@ class Tank {
 
 
     public void render(Terrain terrain) {
-        // Get the heights of each wheel
-        float frontLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z + 1.5f);
-        float frontRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z + 1.5f);
-        float midFrontLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z + 0.75f);
-        float midFrontRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z + 0.75f);
-        float midRearLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z - 0.75f);
-        float midRearRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z - 0.75f);
-        float rearLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z - 1.5f);
-        float rearRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z - 1.5f);
+        // Number of wheels per side
+        int numWheelsPerSide = 8;
+        float tankLength = 3.5f; // Length of the tank body
+        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
 
+        // Calculate the heights of all wheels
+        float[] leftWheelHeights = new float[numWheelsPerSide];
+        float[] rightWheelHeights = new float[numWheelsPerSide];
+
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
+            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
+            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
+        }
+        
         // Calculate the average height of the tank body (based on wheel heights)
-        float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
+        float totalHeight = 0.0f;
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
+        }
+
+        float averageHeight = totalHeight / (numWheelsPerSide * 2);
 
         // Tank body dimensions
-        float tankBodyHeight = 0.5f; // The height of the tank body
+        float tankBodyHeight = 0.55f; // The height of the tank body
 
         // Adjust the height of the tank body to be above the wheels
         float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
+
+        float frontLeftWheelY = leftWheelHeights[0];
+        float frontRightWheelY = rightWheelHeights[0];
+        float rearLeftWheelY = leftWheelHeights[leftWheelHeights.length - 1];
+        float rearRightWheelY = rightWheelHeights[rightWheelHeights.length - 1];
+        float midFrontLeftWheelY = leftWheelHeights[1];
+        float midFrontRightWheelY = rightWheelHeights[1];
+        float midRearLeftWheelY = leftWheelHeights[leftWheelHeights.length - 2];
+        float midRearRightWheelY = rightWheelHeights[rightWheelHeights.length - 2];
 
         // Calculate pitch (foward/backword tilt) and roll (side tilt)
         float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
@@ -438,17 +457,17 @@ class Tank {
     }
 
     private void renderTurret() {
-        GL11.glColor3f(0.8f, 0.8f, 0.2f);
-
-        float turretLength = 1.2f;
-        float turretWidth = 0.85f;
+        GL11.glColor3f(r, g, b); // Set the color of the turret (optional)
+        // GL11.glColor3f(0.8f, 0.8f, 0.2f);
+        float turretLength = 1.0f;
+        float turretWidth = 0.8f;
         float turretHeight = 0.4f;
-        float turretYOffset = 0.5f;
+        float turretYOffset = 1.0f;
 
         GL11.glPushMatrix();
 
         // 🔥 Position the turret on top of the tank
-        GL11.glTranslatef(0.0f, turretYOffset, 0.0f);
+        GL11.glTranslatef(0.0f, turretYOffset, 0.1f);
 
         // 🔥 Rotate turret left/right
         GL11.glRotatef(turretAngle, 0, 1, 0);
@@ -499,6 +518,7 @@ class Tank {
 
         GL11.glPopMatrix();
     }
+
     private void renderBarrel(float turretLength) {
         float barrelRadius = 0.15f;
         float barrelLength = 2.0f;
@@ -509,7 +529,7 @@ class Tank {
         GL11.glPushMatrix();
 
         // 🔥 Move to the front of the turret (where the barrel is attached)
-        float barrelAttachY = 0.0f; // Adjust if needed (small vertical offset)
+        float barrelAttachY = -0.01f; // Adjust if needed (small vertical offset)
         float barrelAttachZ = turretLength; // Moves to the front edge of the turret
         GL11.glTranslatef(0.0f, barrelAttachY, barrelAttachZ);
 
@@ -539,61 +559,70 @@ class Tank {
         GL11.glColor3f(r, g, b); // Set the color of the tank body
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for Phong
 
-
         FloatBuffer tankBodySpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.9f, 0.9f, 0.9f, 1.0f});
         tankBodySpecular.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, tankBodySpecular);
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 64.0f); // High shininess for tank body
 
-        float length = 4.0f;
-        float width = 2.1f;
-        float height = 0.5f;
+        float frontLength = 5.0f; // Length of the front part of the tank
+        float backLength = 4.0f;  // Length of the back part of the tank
+        float height = 0.8f;
+        float yOffset = 0.2f; // Add a y-offset to the tank body
+
+        GL11.glPushMatrix();
+        GL11.glTranslatef(0.0f, yOffset, 0.0f); // Apply the y-offset
 
         GL11.glBegin(GL11.GL_QUADS);
 
-        // Front face
+        // Front face (z = +frontLength/2)
         GL11.glNormal3f(0, 0, 1);
-        GL11.glVertex3f(-width / 2, -height / 2, length / 2);
-        GL11.glVertex3f(width / 2, -height / 2, length / 2);
-        GL11.glVertex3f(width / 2, height / 2, length / 2);
-        GL11.glVertex3f(-width / 2, height / 2, length / 2);
+        GL11.glVertex3f(-width / 2, -height / 2, frontLength / 2);
+        GL11.glVertex3f(width / 2, -height / 2, frontLength / 2);
+        GL11.glVertex3f(width / 2, height / 2, frontLength / 2);
+        GL11.glVertex3f(-width / 2, height / 2, frontLength / 2);
 
-        // Back face (z = -length/2)
-        GL11.glVertex3f(-width / 2, -height / 2, -length / 2);
-        GL11.glVertex3f(width / 2, -height / 2, -length / 2);
-        GL11.glVertex3f(width / 2, height / 2, -length / 2);
-        GL11.glVertex3f(-width / 2, height / 2, -length / 2);
+        // Back face (z = -backLength/2)
+        GL11.glNormal3f(0, 0, -1);
+        GL11.glVertex3f(-width / 2, -height / 2, -backLength / 2);
+        GL11.glVertex3f(width / 2, -height / 2, -backLength / 2);
+        GL11.glVertex3f(width / 2, height / 2, -backLength / 2);
+        GL11.glVertex3f(-width / 2, height / 2, -backLength / 2);
 
         // Left face (x = -width/2)
-        GL11.glVertex3f(-width / 2, -height / 2, -length / 2);
-        GL11.glVertex3f(-width / 2, -height / 2, length / 2);
-        GL11.glVertex3f(-width / 2, height / 2, length / 2);
-        GL11.glVertex3f(-width / 2, height / 2, -length / 2);
+        GL11.glNormal3f(-1, 0, 0);
+        GL11.glVertex3f(-width / 2, -height / 2, -backLength / 2);
+        GL11.glVertex3f(-width / 2, -height / 2, frontLength / 2);
+        GL11.glVertex3f(-width / 2, height / 2, frontLength / 2);
+        GL11.glVertex3f(-width / 2, height / 2, -backLength / 2);
 
         // Right face (x = +width/2)
-        GL11.glVertex3f(width / 2, -height / 2, -length / 2);
-        GL11.glVertex3f(width / 2, -height / 2, length / 2);
-        GL11.glVertex3f(width / 2, height / 2, length / 2);
-        GL11.glVertex3f(width / 2, height / 2, -length / 2);
+        GL11.glNormal3f(1, 0, 0);
+        GL11.glVertex3f(width / 2, -height / 2, -backLength / 2);
+        GL11.glVertex3f(width / 2, -height / 2, frontLength / 2);
+        GL11.glVertex3f(width / 2, height / 2, frontLength / 2);
+        GL11.glVertex3f(width / 2, height / 2, -backLength / 2);
 
         // Top face (y = +height/2)
-        GL11.glVertex3f(-width / 2, height / 2, -length / 2);
-        GL11.glVertex3f(width / 2, height / 2, -length / 2);
-        GL11.glVertex3f(width / 2, height / 2, length / 2);
-        GL11.glVertex3f(-width / 2, height / 2, length / 2);
+        GL11.glNormal3f(0, 1, 0);
+        GL11.glVertex3f(-width / 2, height / 2, -backLength / 2);
+        GL11.glVertex3f(width / 2, height / 2, -backLength / 2);
+        GL11.glVertex3f(width / 2, height / 2, frontLength / 2);
+        GL11.glVertex3f(-width / 2, height / 2, frontLength / 2);
 
         // Bottom face (y = -height/2)
-        GL11.glVertex3f(-width / 2, -height / 2, -length / 2);
-        GL11.glVertex3f(width / 2, -height / 2, -length / 2);
-        GL11.glVertex3f(width / 2, -height / 2, length / 2);
-        GL11.glVertex3f(-width / 2, -height / 2, length / 2);
+        GL11.glNormal3f(0, -1, 0);
+        GL11.glVertex3f(-width / 2, -height / 2, -backLength / 2);
+        GL11.glVertex3f(width / 2, -height / 2, -backLength / 2);
+        GL11.glVertex3f(width / 2, -height / 2, frontLength / 2);
+        GL11.glVertex3f(-width / 2, -height / 2, frontLength / 2);
 
         GL11.glEnd();
+        GL11.glPopMatrix();
     }
 
     private void renderWheel() {
-        float radius = 0.4f;
-        float width = 0.2f;
+        float radius = 0.3f;
+        float width = 0.5f;
         int numSegments = 36;
 
         GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for wheels
@@ -645,90 +674,57 @@ class Tank {
     
         // Define the wheel height offset
         float wheelHeightOffset = 0.8f; // Lower the wheels by this amount relative to the tank body
+        float tankLength = 3.5f; // Length of the tank body
+        int numWheelsPerSide = 8; // Number of wheels per side
+        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
     
-        // Front-left wheel
+        // Render wheels on the left side
+    for (int i = 0; i <= numWheelsPerSide; i++) {
+        float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
+        float wheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + wheelZ); // Get terrain height
+
         GL11.glPushMatrix();
-        float frontLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + 1.5f);
-        GL11.glTranslatef(-0.9f, frontLeftWheelY + 0.5f - wheelHeightOffset, 1.5f);
+        GL11.glTranslatef(-0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
+
+        // Make the front wheels smaller and raised up
+        if (i == 0) { // First two wheels
+            GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
+            GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+        }
+
+        // Make the back wheels smaller and raised up
+        if (i == numWheelsPerSide) { // Last two wheels
+            GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
+            GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
+        }
+
         renderWheel();
         GL11.glPopMatrix();
-    
-        // Front-right wheel
-        GL11.glPushMatrix();
-        float frontRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + 1.5f);
-        GL11.glTranslatef(0.9f, frontRightWheelY + 0.5f - wheelHeightOffset, 1.5f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Mid-front-left wheel
-        GL11.glPushMatrix();
-        float midFrontLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + 0.9f);
-        GL11.glTranslatef(-0.9f, midFrontLeftWheelY + 0.5f - wheelHeightOffset, 0.9f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Mid-front-right wheel
-        GL11.glPushMatrix();
-        float midFrontRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + 0.9f);
-        GL11.glTranslatef(0.9f, midFrontRightWheelY + 0.5f - wheelHeightOffset, 0.9f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Extra wheel 1 (left side)
-        GL11.glPushMatrix();
-        float extraLeftWheel1Y = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + 0.3f);
-        GL11.glTranslatef(-0.9f, extraLeftWheel1Y + 0.5f - wheelHeightOffset, 0.3f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Extra wheel 1 (right side)
-        GL11.glPushMatrix();
-        float extraRightWheel1Y = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + 0.3f);
-        GL11.glTranslatef(0.9f, extraRightWheel1Y + 0.5f - wheelHeightOffset, 0.3f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Extra wheel 2 (left side)
-        GL11.glPushMatrix();
-        float extraLeftWheel2Y = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() - 0.3f);
-        GL11.glTranslatef(-0.9f, extraLeftWheel2Y + 0.5f - wheelHeightOffset, -0.3f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Extra wheel 2 (right side)
-        GL11.glPushMatrix();
-        float extraRightWheel2Y = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() - 0.3f);
-        GL11.glTranslatef(0.9f, extraRightWheel2Y + 0.5f - wheelHeightOffset, -0.3f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Mid-rear-left wheel
-        GL11.glPushMatrix();
-        float midRearLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() - 0.9f);
-        GL11.glTranslatef(-0.9f, midRearLeftWheelY + 0.5f - wheelHeightOffset, -0.9f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Mid-rear-right wheel
-        GL11.glPushMatrix();
-        float midRearRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() - 0.9f);
-        GL11.glTranslatef(0.9f, midRearRightWheelY + 0.5f - wheelHeightOffset, -0.9f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Rear-left wheel
-        GL11.glPushMatrix();
-        float rearLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() - 1.5f);
-        GL11.glTranslatef(-0.9f, rearLeftWheelY + 0.5f - wheelHeightOffset, -1.5f);
-        renderWheel();
-        GL11.glPopMatrix();
-    
-        // Rear-right wheel
-        GL11.glPushMatrix();
-        float rearRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() - 1.5f);
-        GL11.glTranslatef(0.9f, rearRightWheelY + 0.5f - wheelHeightOffset, -1.5f);
-        renderWheel();
-        GL11.glPopMatrix();
+    }
+
+       // Render wheels on the right side
+        for (int i = 0; i <= numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
+            float wheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + wheelZ); // Get terrain height
+
+            GL11.glPushMatrix();
+            GL11.glTranslatef(0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
+
+            // Make the front wheels smaller and raised up
+            if (i == 0) { // First two wheels
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+            }
+
+            // Make the back wheels smaller and raised up
+            if (i == numWheelsPerSide) { // Last two wheels
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
+            }
+
+            renderWheel();
+            GL11.glPopMatrix();
+        }
     }
 }
 
