@@ -1,5 +1,5 @@
 // javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
@@ -72,7 +72,7 @@ public class TankSimulation {
 
         // Clear the screen and depth buffer
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-        
+
         // Initialize multiple tanks
         tanks.add(new Tank(0, 0, 0, 1.0f, 0.0f, 0.0f)); // Tank 1
         tanks.add(new Tank(5, 0, 5, 0.01f, 0.0f, 1.0f)); // Tank 2
@@ -117,7 +117,7 @@ public class TankSimulation {
         GL11.glEnable(GL11.GL_LEQUAL);
 
         // Set the light position
-        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f }); 
+        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f });
         lightPosition.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
 
@@ -269,17 +269,30 @@ public class TankSimulation {
     private void updateTankMovement() {
         // Get the currently controlled tank
         Tank tank = tanks.get(currentTankIndex);
-        
+
+        // Tank body movement
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) {
             tank.accelerate();
-        } if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) {
+        }
+        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) {
             tank.decelerate();
-        } if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) {
+        }
+        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) {
             tank.turnLeft();
-        } if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
+        }
+        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
             tank.turnRight();
         }
+
+        // Turret rotation control
+        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_Q) == GLFW.GLFW_PRESS) {
+            tank.rotateTurretLeft();  // Rotate turret to the left
+        }
+        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_E) == GLFW.GLFW_PRESS) {
+            tank.rotateTurretRight();  // Rotate turret to the right
+        }
     }
+
 }
 
 class Tank {
@@ -291,9 +304,36 @@ class Tank {
     private float acceleration = 0.01f;
     private float friction = 0.98f;
     private float turnSpeed = 2.0f; // Speed of turning
+    // New member variables for turret
+    private float turretAngle = 0.0f;  // Turret rotation angle (initially facing forward)
+    private float turretRotationSpeed = 2.0f;  // Speed at which the turret rotates (adjust as needed)
 
-    
-    public Tank(float x, float y, float z, float r, float g, float b) { // Add turrent movement
+    private float barrelElevation = 0.0f;  // Barrel elevation angle
+    private float barrelElevationSpeed = 1.0f;  // Speed of barrel movement
+    private final float MIN_ELEVATION = -10.0f;  // Minimum elevation angle (downward)
+    private final float MAX_ELEVATION = 15.0f;  // Maximum elevation angle (upward)
+
+
+
+    public void rotateTurretLeft() {
+        turretAngle += turretRotationSpeed;  // Adjust this according to how much you want to rotate
+    }
+
+    public void rotateTurretRight() {
+        turretAngle -= turretRotationSpeed;  // Adjust this according to how much you want to rotate
+    }
+
+    // Methods to move the barrel up and down
+    public void raiseBarrel() {
+        barrelElevation = Math.min(barrelElevation + barrelElevationSpeed, MAX_ELEVATION);
+    }
+
+    public void lowerBarrel() {
+        barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
+    }
+
+
+    public Tank(float x, float y, float z, float r, float g, float b) {
         this.x = x;
         this.y = y;
         this.z = z;
@@ -347,6 +387,7 @@ class Tank {
         speed *= friction;
     }
 
+
     public void render(Terrain terrain) {
         // Get the heights of each wheel
         float frontLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z + 1.5f);
@@ -365,7 +406,6 @@ class Tank {
         float tankBodyHeight = 0.5f; // The height of the tank body
 
         // Adjust the height of the tank body to be above the wheels
-        // The tank body is raised by half of its height so the bottom aligns with the wheels
         float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
 
         // Calculate pitch (foward/backword tilt) and roll (side tilt)
@@ -378,7 +418,7 @@ class Tank {
         // Translate the tank body to the average height plus the offset to position it above the wheels
         GL11.glTranslatef(x, averageHeight + tankBodyYOffset, z);
 
-        // Rotate the tank body for pitch (tilt foward/backword) and roll (tilt left/right)
+        // Rotate the tank body for pitch (tilt forward/backward) and roll (tilt left/right)
         GL11.glRotatef(roll * 10.0f, 0, 0, 1); // Roll around the Z-axis
         GL11.glRotatef(pitch * 10.0f, 1, 0, 0); // Pitch around the X-axis
 
@@ -391,8 +431,109 @@ class Tank {
         // Render the wheels
         renderWheels(terrain); // Render the wheels based on terrain
 
+        // Render the turret on top of the tank body
+        renderTurret();
+
         GL11.glPopMatrix(); // Restore the transformation state
     }
+
+    private void renderTurret() {
+        GL11.glColor3f(0.8f, 0.8f, 0.2f);
+
+        float turretLength = 1.2f;
+        float turretWidth = 0.85f;
+        float turretHeight = 0.4f;
+        float turretYOffset = 0.5f;
+
+        GL11.glPushMatrix();
+
+        // 🔥 Position the turret on top of the tank
+        GL11.glTranslatef(0.0f, turretYOffset, 0.0f);
+
+        // 🔥 Rotate turret left/right
+        GL11.glRotatef(turretAngle, 0, 1, 0);
+
+        // Render the turret body
+        GL11.glBegin(GL11.GL_QUADS);
+
+        // Front face
+        GL11.glVertex3f(-turretWidth, turretHeight, turretLength);
+        GL11.glVertex3f(turretWidth, turretHeight, turretLength);
+        GL11.glVertex3f(turretWidth, -turretHeight, turretLength);
+        GL11.glVertex3f(-turretWidth, -turretHeight, turretLength);
+
+        // Back face
+        GL11.glVertex3f(-turretWidth, turretHeight, -turretLength);
+        GL11.glVertex3f(turretWidth, turretHeight, -turretLength);
+        GL11.glVertex3f(turretWidth, -turretHeight, -turretLength);
+        GL11.glVertex3f(-turretWidth, -turretHeight, -turretLength);
+
+        // Left face
+        GL11.glVertex3f(-turretWidth, turretHeight, -turretLength);
+        GL11.glVertex3f(-turretWidth, turretHeight, turretLength);
+        GL11.glVertex3f(-turretWidth, -turretHeight, turretLength);
+        GL11.glVertex3f(-turretWidth, -turretHeight, -turretLength);
+
+        // Right face
+        GL11.glVertex3f(turretWidth, turretHeight, -turretLength);
+        GL11.glVertex3f(turretWidth, turretHeight, turretLength);
+        GL11.glVertex3f(turretWidth, -turretHeight, turretLength);
+        GL11.glVertex3f(turretWidth, -turretHeight, -turretLength);
+
+        // Top face
+        GL11.glVertex3f(-turretWidth, turretHeight, -turretLength);
+        GL11.glVertex3f(turretWidth, turretHeight, -turretLength);
+        GL11.glVertex3f(turretWidth, turretHeight, turretLength);
+        GL11.glVertex3f(-turretWidth, turretHeight, turretLength);
+
+        // Bottom face
+        GL11.glVertex3f(-turretWidth, -turretHeight, -turretLength);
+        GL11.glVertex3f(turretWidth, -turretHeight, -turretLength);
+        GL11.glVertex3f(turretWidth, -turretHeight, turretLength);
+        GL11.glVertex3f(-turretWidth, -turretHeight, turretLength);
+
+        GL11.glEnd();
+
+        // 🔥 Render the barrel after turret rotation
+        renderBarrel(turretLength);
+
+        GL11.glPopMatrix();
+    }
+    private void renderBarrel(float turretLength) {
+        float barrelRadius = 0.15f;
+        float barrelLength = 2.0f;
+        int numSegments = 36;
+
+        GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for the barrel
+
+        GL11.glPushMatrix();
+
+        // 🔥 Move to the front of the turret (where the barrel is attached)
+        float barrelAttachY = 0.0f; // Adjust if needed (small vertical offset)
+        float barrelAttachZ = turretLength; // Moves to the front edge of the turret
+        GL11.glTranslatef(0.0f, barrelAttachY, barrelAttachZ);
+
+        // 🔥 Rotate around the hinge point (X-axis rotation for elevation)
+        GL11.glRotatef(barrelElevation, 1, 0, 0);
+
+        // 🔥 Move forward after rotation (ensuring correct pivoting)
+        GL11.glTranslatef(0.0f, 0.0f, barrelLength / 2);
+
+        // Render the barrel as a cylinder
+        GL11.glBegin(GL11.GL_QUAD_STRIP);
+        for (int i = 0; i <= numSegments; i++) {
+            double angle = 2 * Math.PI * i / numSegments;
+            float x = (float) Math.cos(angle) * barrelRadius;
+            float y = (float) Math.sin(angle) * barrelRadius;
+
+            GL11.glVertex3f(x, y, -barrelLength / 2);
+            GL11.glVertex3f(x, y, barrelLength / 2);
+        }
+        GL11.glEnd();
+
+        GL11.glPopMatrix();
+    }
+
 
     private void renderTankBody() {
         GL11.glColor3f(r, g, b); // Set the color of the tank body
@@ -405,7 +546,7 @@ class Tank {
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 64.0f); // High shininess for tank body
 
         float length = 4.0f;
-        float width = 2.0f;
+        float width = 2.1f;
         float height = 0.5f;
 
         GL11.glBegin(GL11.GL_QUADS);
@@ -608,7 +749,7 @@ class OBJLoader {
                 normals.add(normal);
             } else if (tokens[0].equals("f")) {
                 int[] face = {Integer.parseInt(tokens[1].split("/")[0]) - 1, Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1};
-                faces.add(face);    
+                faces.add(face);
             }
         }
 
@@ -636,7 +777,7 @@ class OBJLoader {
             indicesArray[faceIndex++] = face[1];
             indicesArray[faceIndex++] = face[2];
         }
-        
+
         reader.close();
         return new Model(verticesArray, normalsArray, indicesArray);
     }
