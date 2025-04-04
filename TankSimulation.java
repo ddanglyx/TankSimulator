@@ -1,5 +1,5 @@
 // javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
@@ -405,7 +405,7 @@ class Tank {
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 64.0f); // High shininess for tank body
 
         float length = 4.0f;
-        float width = 2.0f;
+        float width = 2.1f;
         float height = 0.5f;
 
         GL11.glBegin(GL11.GL_QUADS);
