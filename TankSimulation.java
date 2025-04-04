@@ -296,6 +296,11 @@ public class TankSimulation {
 }
 
 class Tank {
+    /* 
+    TODO from Ethan: need to make a lot of the variables used in the render function field variables instead of declared in the function.
+    I want to do this because I need these values for calculating the bullet's initial position and trajectory.
+    */ 
+
     private float x, y, z; // Tank's position
     private float r, g, b; // Color of the tank
     private float speed = 0; // Current speed
@@ -313,8 +318,6 @@ class Tank {
     private final float MIN_ELEVATION = -10.0f;  // Minimum elevation angle (downward)
     private final float MAX_ELEVATION = 15.0f;  // Maximum elevation angle (upward)
 
-
-
     public void rotateTurretLeft() {
         turretAngle += turretRotationSpeed;  // Adjust this according to how much you want to rotate
     }
@@ -331,7 +334,6 @@ class Tank {
     public void lowerBarrel() {
         barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
     }
-
 
     public Tank(float x, float y, float z, float r, float g, float b) {
         this.x = x;
@@ -356,6 +358,16 @@ class Tank {
 
     public float getAngle() {
         return angle;
+    }
+
+    // added by Ethan
+    public float getTurretAngle() {
+        return turretAngle;
+    }
+
+    // added by Ethan
+    public float getCombinedTurretAngle() {
+        return turretAngle + angle; // Combine turret and tank angles for determing angle at which the bullet will leave the 
     }
 
     public void accelerate() {
@@ -927,24 +939,29 @@ class Terrain {
 }
 
 class Bullet {
-    // private float x, y, z; // Bullet's position
-    // private float speed = 0.1f; // Speed of the bullet
-    // private float directionX, directionY, directionZ; // Direction of the bullet
+    private static final float SPEED = 0.1f; // Speed of the bullet
 
-    // public Bullet(float x, float y, float z, float directionX, float directionY, float directionZ) {
-    //     this.x = x;
-    //     this.y = y;
-    //     this.z = z;
-    //     this.directionX = directionX;
-    //     this.directionY = directionY;
-    //     this.directionZ = directionZ;
-    // }
+    private float x, y, z; // Bullet's position
+    private float r, g, b; // Bullet's color
+    private float directionX, directionY, directionZ; // Direction of the bullet
 
-    // public void update() {
-    //     x += directionX * speed;
-    //     y += directionY * speed;
-    //     z += directionZ * speed;
-    // }
+    public Bullet(Tank tank) {
+        // TODO make constructor get values from the tank getter methods instead of passing them in
+
+        // this.x = x;
+        // this.y = y;
+        // this.z = z;
+        // this.directionX = directionX;
+        // this.directionY = directionY;
+        // this.directionZ = directionZ;
+    }
+
+    // TODO see if this works?
+    public void update() {
+        x += directionX * speed;
+        y += directionY * speed;
+        z += directionZ * speed;
+    }
 
     // public void render() {
     //     GL11.glPushMatrix();
