@@ -440,9 +440,9 @@ class Tank {
     private void renderTurret() {
         GL11.glColor3f(0.8f, 0.8f, 0.2f);
 
-        float turretLength = 1.3f;
+        float turretLength = 1.2f;
         float turretWidth = 0.85f;
-        float turretHeight = 0.2f;
+        float turretHeight = 0.4f;
         float turretYOffset = 0.5f;
 
         GL11.glPushMatrix();
