@@ -457,8 +457,8 @@ class Tank {
     }
 
     private void renderTurret() {
-        GL11.glColor3f(r, g, b); // Set the color of the turret (optional)
-        // GL11.glColor3f(0.8f, 0.8f, 0.2f);
+        // GL11.glColor3f(r, g, b); // Color of the turret (same as tank body)
+        GL11.glColor3f(0.8f, 0.8f, 0.2f); // Yellow for testing
         float turretLength = 1.0f;
         float turretWidth = 0.8f;
         float turretHeight = 0.4f;
