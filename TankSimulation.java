@@ -312,6 +312,18 @@ class Tank {
     // New member variables for turret
     private float turretAngle = 0.0f;  // Turret rotation angle (initially facing forward)
     private float turretRotationSpeed = 2.0f;  // Speed at which the turret rotates (adjust as needed)
+    private float turretLength = 1.2f;
+    private float turretWidth = 0.85f;
+    private float turretHeight = 0.4f;
+    private float turretYOffset = 0.5f;
+
+    private float barrelRadius = 0.15f;
+    private float barrelLength = 2.0f;
+    private int numSegments = 36;
+
+    // Tank body dimensions
+    private float tankBodyHeight = 0.5f; // The height of the tank body
+    private float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
 
     private float barrelElevation = 0.0f;  // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f;  // Speed of barrel movement
@@ -370,6 +382,31 @@ class Tank {
         return turretAngle + angle; // Combine turret and tank angles for determing angle at which the bullet will leave the 
     }
 
+    // added by Ethan
+    public float getTankBodyHeight() {
+        return tankBodyHeight;
+    }
+
+    // added by Ethan
+    public float getTankBodyYOffset() {
+        return tankBodyYOffset;
+    }
+
+    // added by Ethan
+    public float getTurretLength() {
+        return turretLength;
+    }
+
+    // added by Ethan
+    public float getTurretYOffset() {
+        return turretYOffset;
+    }
+
+    // added by Ethan
+    public float getBarrelLength() {
+        return barrelLength;
+    }
+
     public void accelerate() {
         if (speed < maxSpeed) {
             speed += acceleration;
@@ -399,7 +436,6 @@ class Tank {
         speed *= friction;
     }
 
-
     public void render(Terrain terrain) {
         // Get the heights of each wheel
         float frontLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z + 1.5f);
@@ -413,12 +449,6 @@ class Tank {
 
         // Calculate the average height of the tank body (based on wheel heights)
         float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
-
-        // Tank body dimensions
-        float tankBodyHeight = 0.5f; // The height of the tank body
-
-        // Adjust the height of the tank body to be above the wheels
-        float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
 
         // Calculate pitch (foward/backword tilt) and roll (side tilt)
         float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
@@ -451,11 +481,6 @@ class Tank {
 
     private void renderTurret() {
         GL11.glColor3f(0.8f, 0.8f, 0.2f);
-
-        float turretLength = 1.2f;
-        float turretWidth = 0.85f;
-        float turretHeight = 0.4f;
-        float turretYOffset = 0.5f;
 
         GL11.glPushMatrix();
 
@@ -512,10 +537,6 @@ class Tank {
         GL11.glPopMatrix();
     }
     private void renderBarrel(float turretLength) {
-        float barrelRadius = 0.15f;
-        float barrelLength = 2.0f;
-        int numSegments = 36;
-
         GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for the barrel
 
         GL11.glPushMatrix();
@@ -550,7 +571,6 @@ class Tank {
     private void renderTankBody() {
         GL11.glColor3f(r, g, b); // Set the color of the tank body
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for Phong
-
 
         FloatBuffer tankBodySpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.9f, 0.9f, 0.9f, 1.0f});
         tankBodySpecular.flip();
@@ -945,8 +965,28 @@ class Bullet {
     private float r, g, b; // Bullet's color
     private float directionX, directionY, directionZ; // Direction of the bullet
 
-    public Bullet(Tank tank) {
-        // TODO make constructor get values from the tank getter methods instead of passing them in
+    public Bullet(Tank tank, Terrain terrain) {
+
+        float x = tank.getX();
+        float z = tank.getZ();
+        Terrain terrain = tank.getTerrain(); // Get the terrain object from the tank
+        
+        // Get the heights of each wheel
+        float frontLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z + 1.5f);
+        float frontRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z + 1.5f);
+        float midFrontLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z + 0.75f);
+        float midFrontRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z + 0.75f);
+        float midRearLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z - 0.75f);
+        float midRearRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z - 0.75f);
+        float rearLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z - 1.5f);
+        float rearRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z - 1.5f);
+
+        // Calculate the average height of the tank body (based on wheel heights)
+        float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
+
+        // Calculate pitch (forward/backward tilt) and roll (side tilt)
+        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
 
         // this.x = x;
         // this.y = y;
@@ -958,9 +998,9 @@ class Bullet {
 
     // TODO see if this works?
     public void update() {
-        x += directionX * speed;
-        y += directionY * speed;
-        z += directionZ * speed;
+        x += directionX * SPEED;
+        y += directionY * SPEED;
+        z += directionZ * SPEED;
     }
 
     // public void render() {
