@@ -969,7 +969,6 @@ class Bullet {
 
         float x = tank.getX();
         float z = tank.getZ();
-        Terrain terrain = tank.getTerrain(); // Get the terrain object from the tank
         
         // Get the heights of each wheel
         float frontLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z + 1.5f);
