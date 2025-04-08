@@ -1,7 +1,8 @@
-// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation
+// javac -classpath ".;C:\lwjgl-release-3.3.6-custom\*" TankSimulation.java
+// java -classpath ".;C:\lwjgl-release-3.3.6-custom\*" TankSimulation
 
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 
 import java.io.BufferedReader;
@@ -9,6 +10,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.File;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -19,6 +21,7 @@ import java.nio.FloatBuffer;
 import org.lwjgl.BufferUtils;
 
 import java.util.LinkedList;
+import java.util.Map;
 
 public class TankSimulation {
     private long window;
@@ -27,85 +30,274 @@ public class TankSimulation {
     private List<Tank> tanks = new LinkedList<>(); // List to store multiple tanks
     private int currentTankIndex = 0; // Index of the currently controlled tank
     private Terrain terrain;
+    private GameClient client;
+    private String playerName;
+    private boolean autoStart; // if true, skip waiting for START
+
+    // New constructor accepting the player's name, autoStart flag, and GameClient
+    public TankSimulation(String playerName, boolean autoStart, GameClient client) {
+        this.playerName = playerName;
+        this.autoStart = autoStart;
+        this.client = client;  // Store the client reference
+    }
 
     public static void main(String[] args) {
-        new TankSimulation().run();
+        // called from GameClient
+        System.out.println("Please run GameClient to start the game.");
     }
 
     public void run() {
-        init();
-        loop();
-        GLFW.glfwDestroyWindow(window);
-        GLFW.glfwTerminate();
+        System.out.println("Initializing game...");
+        try {
+            init();
+            System.out.println("Game window created. Starting game loop...");
+            loop();
+        } catch (Exception e) {
+            System.err.println("Error running game: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            cleanup();
+        }
+    }
+
+    private void cleanup()
+    {
+        if (client != null)
+        {
+            client.stop(); // Close the client connection
+        }
+        if (window != 0)
+        {
+            GLFW.glfwDestroyWindow(window);
+            GLFW.glfwTerminate();
+        }
     }
 
     private void init() {
-        if (!GLFW.glfwInit()) {
-            throw new IllegalStateException("Unable to initialize GLFW");
+        System.out.println("Attempting to initialize GLFW...");
+        try {
+            // Initialize GLFW
+            if (!GLFW.glfwInit()) {
+                throw new IllegalStateException("Unable to initialize GLFW");
+            }
+            System.out.println("GLFW initialized successfully");
+
+            // Configure GLFW
+            GLFW.glfwDefaultWindowHints();
+            GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+            GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_TRUE);
+            GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 1);
+            GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 1);
+
+            // Create the window
+            window = GLFW.glfwCreateWindow(width, height, "Tank Simulation - Player " + playerName, 0, 0);
+            if (window == 0) {
+                throw new RuntimeException("Failed to create the GLFW window");
+            }
+
+            // Center window
+            GLFWVidMode vidmode = GLFW.glfwGetVideoMode(GLFW.glfwGetPrimaryMonitor());
+            if (vidmode != null) {
+                GLFW.glfwSetWindowPos(
+                    window,
+                    (vidmode.width() - width) / 2,
+                    (vidmode.height() - height) / 2
+                );
+            }
+
+            // Make the OpenGL context current
+            GLFW.glfwMakeContextCurrent(window);
+            GLFW.glfwSwapInterval(1);
+            GLFW.glfwShowWindow(window);
+
+            // Initialize OpenGL
+            GL.createCapabilities();
+
+            // Enable depth testing
+            GL11.glEnable(GL11.GL_DEPTH_TEST);
+            GL11.glDepthFunc(GL11.GL_LESS);
+
+            // Initialize lighting
+            initLighting();
+
+            // Set up the perspective projection
+            float aspectRatio = (float) width / height;
+            setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 1000.0f);
+
+            // Initialize game objects
+            try {
+                System.out.println("Loading terrain...");
+                terrain = new Terrain("terrain.obj");
+                System.out.println("Terrain loaded successfully");
+            } catch (Exception e) {
+                System.err.println("Error loading terrain: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            // Initialize tanks with different starting positions based on player number
+            if (client.getPlayerNumber() == 1) {
+                // Player 1 setup
+                System.out.println("Initializing Player 1 tanks...");
+                Tank localTank = new Tank(-5, 0, -5, 1.0f, 0.0f, 0.0f);  // Red tank (local)
+                Tank remoteTank = new Tank(5, 0, 5, 0.0f, 0.0f, 1.0f);   // Blue tank (remote)
+
+                // Set tank properties
+                localTank.setRemote(false);
+                remoteTank.setRemote(true);
+
+                // Initialize positions
+                localTank.initializeTargetPositions();
+                remoteTank.initializeTargetPositions();
+
+                // Add tanks in order (local first, then remote)
+                tanks.clear();
+                tanks.add(localTank);
+                tanks.add(remoteTank);
+
+                System.out.println("Player 1 tanks initialized:");
+                System.out.println("Local tank (Red) at: " + localTank.getX() + "," + localTank.getZ());
+                System.out.println("Remote tank (Blue) at: " + remoteTank.getX() + "," + remoteTank.getZ());
+            } else {
+                // Player 2 setup
+                System.out.println("Initializing Player 2 tanks...");
+                Tank remoteTank = new Tank(-5, 0, -5, 1.0f, 0.0f, 0.0f); // Red tank (remote)
+                Tank localTank = new Tank(5, 0, 5, 0.0f, 0.0f, 1.0f);    // Blue tank (local)
+
+                // Set tank properties
+                remoteTank.setRemote(true);
+                localTank.setRemote(false);
+
+                // Initialize positions
+                remoteTank.initializeTargetPositions();
+                localTank.initializeTargetPositions();
+
+                // Add tanks in order (remote first, then local)
+                tanks.clear();
+                tanks.add(remoteTank);
+                tanks.add(localTank);
+
+                System.out.println("Player 2 tanks initialized:");
+                System.out.println("Remote tank (Red) at: " + remoteTank.getX() + "," + remoteTank.getZ());
+                System.out.println("Local tank (Blue) at: " + localTank.getX() + "," + localTank.getZ());
+            }
+
+            // Debug print tank list
+            System.out.println("\nFinal tank list:");
+            for (int i = 0; i < tanks.size(); i++) {
+                Tank tank = tanks.get(i);
+                System.out.println("Tank " + i + ": position=" + tank.getX() + "," + tank.getZ() +
+                                  " remote=" + (tank.isRemote() ? "yes" : "no"));
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error during initialization: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-
-        window = GLFW.glfwCreateWindow(width, height, "Tank Simulation", 0, 0);
-        if (window == 0) {
-            throw new RuntimeException("Failed to create the GLFW window");
-        }
-
-        GLFW.glfwMakeContextCurrent(window);
-        GL.createCapabilities();
-
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glLoadIdentity();
-        setPerspectiveProjection(45.0f, (float) 800 / (float) 600, 0.1f, 100.0f);
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-
-        initLighting();
-
-        GL11.glEnable(GL11.GL_COLOR_MATERIAL);
-        GL11.glColorMaterial(GL11.GL_FRONT_AND_BACK, GL11.GL_AMBIENT_AND_DIFFUSE);
-
-        // Define light properties
-        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f });
-        lightPosition.flip();
-        GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
-
-        GL11.glEnable(GL11.GL_DEPTH_TEST);
-        GL11.glDepthFunc(GL11.GL_LEQUAL);
-
-        // Clear the screen and depth buffer
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-        
-        // Initialize multiple tanks
-        tanks.add(new Tank(0, 0, 0, 1.0f, 0.0f, 0.0f)); // Tank 1
-        tanks.add(new Tank(5, 0, 5, 0.01f, 0.0f, 1.0f)); // Tank 2
-
-        // Initialize the terrain
-        terrain = new Terrain("terrain.obj"); // Load the terrain from an OBJ file
     }
 
     private void loop() {
-        while (!GLFW.glfwWindowShouldClose(window)) {
-            GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-            GL11.glLoadIdentity();
+        try {
+            // Time tracking for frame rate limiting
+            long lastTime = System.nanoTime();
+            double ns = 1000000000.0 / 60.0; // 60 FPS
+            double delta = 0;
 
-            // Update tank movement based on user input
-            updateTankMovement();
+            while (!GLFW.glfwWindowShouldClose(window)) {
+                long now = System.nanoTime();
+                delta += (now - lastTime) / ns;
+                lastTime = now;
 
-            // Update the camera to track the currently controlled tank
-            updateCamera(tanks.get(currentTankIndex));
+                // Process all pending events
+                GLFW.glfwPollEvents();
 
-            // Render terrain
+                // Update game state at fixed time steps
+                while (delta >= 1) {
+                    updateGameState();
+                    delta--;
+                }
+
+                // Render
+                render();
+
+                // Swap buffers
+                GLFW.glfwSwapBuffers(window);
+
+                // Break if window should close
+                if (GLFW.glfwWindowShouldClose(window)) {
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error in game loop: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void updateGameState() {
+        int localIndex = client.getPlayerNumber() - 1;
+        Tank localTank = tanks.get(localIndex);
+        Tank remoteTank = tanks.get(localIndex == 0 ? 1 : 0);
+
+        // Update local tank movement
+        updateTankMovement();
+
+        // Only update and send state for local tank
+        if (localTank != null) {
+            localTank.update();
+            TankState state = new TankState(
+                localTank.getX(),
+                localTank.getY(),
+                localTank.getZ(),
+                localTank.getAngle()
+            );
+            client.sendTankState(state);
+
+            System.out.println("Local tank state sent: " + state);
+        }
+
+        // Update remote tank position from network state
+        Map<String, TankState> otherTanks = client.getOtherTanks();
+        if (otherTanks != null && !otherTanks.isEmpty()) {
+            int otherIndex = (localIndex == 0) ? 1 : 0;
+            if (otherIndex < tanks.size()) {
+                String otherPlayerName = null;
+                for (String name : otherTanks.keySet()) {
+                    if (!name.equals(playerName)) {
+                        otherPlayerName = name;
+                        break;
+                    }
+                }
+
+                if (otherPlayerName != null) {
+                    TankState state = otherTanks.get(otherPlayerName);
+                    tanks.get(otherIndex).syncFromState(state);
+                }
+            }
+        }
+    }
+
+    private void render() {
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        GL11.glLoadIdentity();
+
+        int localIndex = client.getPlayerNumber() - 1;
+        if (localIndex >= 0 && localIndex < tanks.size()) {
+            Tank localTank = tanks.get(localIndex);
+            if (localTank != null) {
+                updateCamera(localTank);
+            }
+        }
+
+        // Render terrain and tanks
+        if (terrain != null) {
             terrain.render();
+        }
 
-            // Render and update all tanks
-            for (Tank tank : tanks) {
-                tank.update();
+        for (Tank tank : tanks) {
+            if (tank != null) {
                 tank.render(terrain);
             }
-
-            // Handle tank switching
-            handleTankSwitching();
-
-            GLFW.glfwSwapBuffers(window);
-            GLFW.glfwPollEvents();
         }
     }
 
@@ -117,7 +309,7 @@ public class TankSimulation {
         GL11.glEnable(GL11.GL_LEQUAL);
 
         // Set the light position
-        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f }); 
+        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f });
         lightPosition.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
 
@@ -160,7 +352,7 @@ public class TankSimulation {
     }
 
     private void setPerspectiveProjection(float fov, float aspect, float zNear, float zFar) {
-        float ymax = (float) (zNear * Math.tan(Math.toRadians (fov / 2.0)));
+        float ymax = (float) (zNear * Math.tan(Math.toRadians(fov / 2.0)));
         float xmax = ymax * aspect;
 
         GL11.glMatrixMode(GL11.GL_PROJECTION);
@@ -188,8 +380,8 @@ public class TankSimulation {
         float cameraHeight = 5.0f; // Height above the tank
 
         // Calculate the desired camera position behind and above the tank
-        float targetCameraX = tank.getX() - (float)(Math.sin(Math.toRadians(tank.getAngle())) * cameraDistance);
-        float targetCameraZ = tank.getZ() - (float)(Math.cos(Math.toRadians(tank.getAngle())) * cameraDistance);
+        float targetCameraX = tank.getX() - (float) (Math.sin(Math.toRadians(tank.getAngle())) * cameraDistance);
+        float targetCameraZ = tank.getZ() - (float) (Math.cos(Math.toRadians(tank.getAngle())) * cameraDistance);
         float targetCameraY = tank.getY() + cameraHeight;
 
         // Smoothly interpolate between the current camera position and the target position
@@ -239,7 +431,7 @@ public class TankSimulation {
     // Utility functions for vector math
     private void normalize(float[] vector) {
         float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        if(length != 0) {
+        if (length != 0) {
             vector[0] /= length;
             vector[1] /= length;
             vector[2] /= length;
@@ -267,23 +459,68 @@ public class TankSimulation {
     }
 
     private void updateTankMovement() {
-        // Get the currently controlled tank
-        Tank tank = tanks.get(currentTankIndex);
-        
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) {
-            tank.accelerate();
-        } if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) {
-            tank.decelerate();
-        } if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) {
-            tank.turnLeft();
-        } if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
-            tank.turnRight();
+        int localIndex = client.getPlayerNumber() - 1;
+        Tank localTank = tanks.get(localIndex);
+
+        // Debug print to verify which tank we're controlling
+        System.out.println("Controlling tank at index " + localIndex +
+                          " (Player " + client.getPlayerNumber() + ")" +
+                          " at position: " + localTank.getX() + "," + localTank.getZ());
+
+        // Only control local tank
+        if (localTank != null) {
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) {
+                localTank.accelerate();
+            }
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) {
+                localTank.decelerate();
+            }
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) {
+                localTank.turnLeft();
+            }
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
+                localTank.turnRight();
+            }
         }
     }
 }
 
 class Tank {
-    private float x, y, z; // Tank's position
+    protected float x, y, z;  // Change from private to protected
+    private float targetX, targetY, targetZ, targetAngle;
+    private boolean isRemote = false;
+
+    public boolean isRemote() {
+        return isRemote;
+    }
+
+    public void setRemote(boolean remote) {
+        this.isRemote = remote;
+        System.out.println("Tank at (" + x + "," + z + ") set to " +
+                          (remote ? "remote" : "local"));
+    }
+
+    // Add setter methods
+    public void setTargetX(float x) { this.targetX = x; }
+    public void setTargetY(float y) { this.targetY = y; }
+    public void setTargetZ(float z) { this.targetZ = z; }
+    public void setTargetAngle(float angle) { this.targetAngle = angle; }
+
+    // Add getter methods
+    public float getTargetX() { return targetX; }
+    public float getTargetY() { return targetY; }
+    public float getTargetZ() { return targetZ; }
+    public float getTargetAngle() { return targetAngle; }
+
+    // Add a method to initialize target positions
+    public void initializeTargetPositions() {
+        this.targetX = this.x;
+        this.targetY = this.y;
+        this.targetZ = this.z;
+        this.targetAngle = this.angle;
+    }
+
+    private static final float LERP_FACTOR = 0.1f;
     private float r, g, b; // Color of the tank
     private float speed = 0; // Current speed
     private float angle = 0; // Direction the tank is facing
@@ -292,8 +529,13 @@ class Tank {
     private float friction = 0.98f;
     private float turnSpeed = 2.0f; // Speed of turning
 
-    
-    public Tank(float x, float y, float z, float r, float g, float b) {
+    private float lerp(float start, float end, float alpha)
+    {
+        return start + alpha * (end - start);
+    }
+
+    public Tank(float x, float y, float z, float r, float g, float b)
+    { // Add turrent movement
         this.x = x;
         this.y = y;
         this.z = z;
@@ -339,11 +581,20 @@ class Tank {
     }
 
     public void update() {
-        // Update position based on speed and angle
-        x += speed * Math.sin(Math.toRadians(angle));
-        z += speed * Math.cos(Math.toRadians(angle));
+        // Only update position if this is a local tank
+        if (!isRemote && Math.abs(speed) > 0.0001f) {
+            float newX = x + speed * (float)Math.sin(Math.toRadians(angle));
+            float newZ = z + speed * (float)Math.cos(Math.toRadians(angle));
 
-        // Apply friction to slow down the tank naturally
+            x = newX;
+            z = newZ;
+
+            // Update target positions
+            targetX = x;
+            targetZ = z;
+        }
+
+        // Apply friction to slow down the tank
         speed *= friction;
     }
 
@@ -351,11 +602,15 @@ class Tank {
         // Get the heights of each wheel
         float frontLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z + 1.5f);
         float frontRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z + 1.5f);
+        float midFrontLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z + 0.75f);
+        float midFrontRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z + 0.75f);
+        float midRearLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z - 0.75f);
+        float midRearRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z - 0.75f);
         float rearLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z - 1.5f);
         float rearRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z - 1.5f);
 
         // Calculate the average height of the tank body (based on wheel heights)
-        float averageHeight = (frontLeftWheelY + frontRightWheelY + rearLeftWheelY + rearRightWheelY) / 4.0f;
+        float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
 
         // Tank body dimensions
         float tankBodyHeight = 0.5f; // The height of the tank body
@@ -365,8 +620,8 @@ class Tank {
         float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
 
         // Calculate pitch (foward/backword tilt) and roll (side tilt)
-        float pitch = (frontLeftWheelY + frontRightWheelY) / 2.0f - (rearLeftWheelY + rearRightWheelY) / 2.0f;
-        float roll = (frontLeftWheelY + rearLeftWheelY) / 2.0f - (frontRightWheelY + rearRightWheelY) / 2.0f;
+        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
 
         // Apply the calculated pitch, roll, and average height to the tank body
         GL11.glPushMatrix();
@@ -394,8 +649,7 @@ class Tank {
         GL11.glColor3f(r, g, b); // Set the color of the tank body
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for Phong
 
-
-        FloatBuffer tankBodySpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.9f, 0.9f, 0.9f, 1.0f});
+        FloatBuffer tankBodySpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.9f, 0.9f, 0.9f, 1.0f });
         tankBodySpecular.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, tankBodySpecular);
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 64.0f); // High shininess for tank body
@@ -454,7 +708,7 @@ class Tank {
         GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for wheels
         GL11.glShadeModel(GL11.GL_SMOOTH);
 
-        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.5f, 0.5f, 0.5f, 1.0f});
+        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.5f, 0.5f, 0.5f, 1.0f });
         wheelSpecular.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, wheelSpecular);
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 16.0f); // Low shininess for wheels
@@ -466,7 +720,7 @@ class Tank {
         GL11.glBegin(GL11.GL_TRIANGLE_FAN);
         GL11.glVertex3f(0.0f, 0.0f, -width / 2); // Center of the circle
         for (int i = 0; i <= numSegments; i++) {
-            double angle =  2 * Math.PI * i / numSegments;
+            double angle = 2 * Math.PI * i / numSegments;
             GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, -width / 2);
         }
         GL11.glEnd();
@@ -475,14 +729,14 @@ class Tank {
         GL11.glBegin(GL11.GL_TRIANGLE_FAN);
         GL11.glVertex3f(0.0f, 0.0f, width / 2); // Center of the circle
         for (int i = 0; i <= numSegments; i++) {
-            double angle =  2 * Math.PI * i / numSegments;
+            double angle = 2 * Math.PI * i / numSegments;
             GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, width / 2);
         }
         GL11.glEnd();
 
         GL11.glBegin(GL11.GL_QUAD_STRIP);
         for (int i = 0; i <= numSegments; i++) {
-            double angle =  2 * Math.PI * i / numSegments;
+            double angle = 2 * Math.PI * i / numSegments;
             float x = (float) Math.cos(angle) * radius;
             float y = (float) Math.sin(angle) * radius;
 
@@ -499,35 +753,107 @@ class Tank {
         GL11.glColor3f(0.0f, 0.0f, 0.0f); // Black color for wheels
 
         // Define the wheel height offset
-        float wheelHeightOffset = 0.8f;//0.3f; // Lower the wheels by this amount relative to the tank body
+        float wheelHeightOffset = 0.8f; // Lower the wheels by this amount relative to the tank body
 
         // Front-left wheel
         GL11.glPushMatrix();
         float frontLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + 1.5f);
-        GL11.glTranslatef(-0.9f, frontLeftWheelY + 0.5f - wheelHeightOffset, 1.5f); // Lower the wheel by the offset
-        renderWheel(); // Render the wheel
+        GL11.glTranslatef(-0.9f, frontLeftWheelY + 0.5f - wheelHeightOffset, 1.5f);
+        renderWheel();
         GL11.glPopMatrix();
 
         // Front-right wheel
         GL11.glPushMatrix();
         float frontRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + 1.5f);
-        GL11.glTranslatef(0.9f, frontRightWheelY + 0.5f - wheelHeightOffset, 1.5f); // Lower the wheel by the offset
+        GL11.glTranslatef(0.9f, frontRightWheelY + 0.5f - wheelHeightOffset, 1.5f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Mid-front-left wheel
+        GL11.glPushMatrix();
+        float midFrontLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + 0.9f);
+        GL11.glTranslatef(-0.9f, midFrontLeftWheelY + 0.5f - wheelHeightOffset, 0.9f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Mid-front-right wheel
+        GL11.glPushMatrix();
+        float midFrontRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + 0.9f);
+        GL11.glTranslatef(0.9f, midFrontRightWheelY + 0.5f - wheelHeightOffset, 0.9f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Extra wheel 1 (left side)
+        GL11.glPushMatrix();
+        float extraLeftWheel1Y = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + 0.3f);
+        GL11.glTranslatef(-0.9f, extraLeftWheel1Y + 0.5f - wheelHeightOffset, 0.3f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Extra wheel 1 (right side)
+        GL11.glPushMatrix();
+        float extraRightWheel1Y = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + 0.3f);
+        GL11.glTranslatef(0.9f, extraRightWheel1Y + 0.5f - wheelHeightOffset, 0.3f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Extra wheel 2 (left side)
+        GL11.glPushMatrix();
+        float extraLeftWheel2Y = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() - 0.3f);
+        GL11.glTranslatef(-0.9f, extraLeftWheel2Y + 0.5f - wheelHeightOffset, -0.3f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Extra wheel 2 (right side)
+        GL11.glPushMatrix();
+        float extraRightWheel2Y = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() - 0.3f);
+        GL11.glTranslatef(0.9f, extraRightWheel2Y + 0.5f - wheelHeightOffset, -0.3f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Mid-rear-left wheel
+        GL11.glPushMatrix();
+        float midRearLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() - 0.9f);
+        GL11.glTranslatef(-0.9f, midRearLeftWheelY + 0.5f - wheelHeightOffset, -0.9f);
+        renderWheel();
+        GL11.glPopMatrix();
+
+        // Mid-rear-right wheel
+        GL11.glPushMatrix();
+        float midRearRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() - 0.9f);
+        GL11.glTranslatef(0.9f, midRearRightWheelY + 0.5f - wheelHeightOffset, -0.9f);
         renderWheel();
         GL11.glPopMatrix();
 
         // Rear-left wheel
         GL11.glPushMatrix();
         float rearLeftWheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() - 1.5f);
-        GL11.glTranslatef(-0.9f, rearLeftWheelY + 0.5f - wheelHeightOffset, -1.5f); // Lower the wheel by the offset
+        GL11.glTranslatef(-0.9f, rearLeftWheelY + 0.5f - wheelHeightOffset, -1.5f);
         renderWheel();
         GL11.glPopMatrix();
 
         // Rear-right wheel
         GL11.glPushMatrix();
         float rearRightWheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() - 1.5f);
-        GL11.glTranslatef(0.9f, rearRightWheelY + 0.5f - wheelHeightOffset, -1.5f); // Lower the wheel by the offset
+        GL11.glTranslatef(0.9f, rearRightWheelY + 0.5f - wheelHeightOffset, -1.5f);
         renderWheel();
         GL11.glPopMatrix();
+    }
+
+    public void syncFromState(TankState state) {
+        // Directly update position without interpolation for remote tank
+        this.x = state.getX();
+        this.y = state.getY();
+        this.z = state.getZ();
+        this.angle = state.getAngle();
+
+        // Update target positions to match current position
+        this.targetX = this.x;
+        this.targetY = this.y;
+        this.targetZ = this.z;
+        this.targetAngle = this.angle;
+
+        System.out.println("Tank position synced to: " + x + "," + z);
     }
 }
 
@@ -541,14 +867,14 @@ class OBJLoader {
         while ((line = reader.readLine()) != null) {
             String[] tokens = line.split("\\s+");
             if (tokens[0].equals("v")) {
-                float[] vertex = {Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3])};
+                float[] vertex = { Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3]) };
                 vertices.add(vertex);
             } else if (tokens[0].equals("vn")) {
-                float[] normal = {Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3])};
+                float[] normal = { Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3]) };
                 normals.add(normal);
             } else if (tokens[0].equals("f")) {
-                int[] face = {Integer.parseInt(tokens[1].split("/")[0]) - 1, Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1};
-                faces.add(face);    
+                int[] face = { Integer.parseInt(tokens[1].split("/")[0]) - 1, Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1 };
+                faces.add(face);
             }
         }
 
@@ -576,7 +902,7 @@ class OBJLoader {
             indicesArray[faceIndex++] = face[1];
             indicesArray[faceIndex++] = face[2];
         }
-        
+
         reader.close();
         return new Model(verticesArray, normalsArray, indicesArray);
     }
@@ -610,10 +936,19 @@ class Terrain {
     private Model model;
 
     public Terrain(String objFilePath) {
+        File file = new File(objFilePath);
+        if (!file.exists()) {
+            System.err.println("Error: terrain.obj not found at: " + file.getAbsolutePath());
+            throw new RuntimeException("terrain.obj not found");
+        }
         try {
+            System.out.println("Loading terrain from: " + file.getAbsolutePath());
             this.model = OBJLoader.loadModel(objFilePath);
+            System.out.println("Terrain loaded successfully");
         } catch (IOException e) {
+            System.err.println("Error loading terrain: " + e.getMessage());
             e.printStackTrace();
+            throw new RuntimeException("Failed to load terrain", e);
         }
     }
 
@@ -622,7 +957,7 @@ class Terrain {
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for better Phong effect
 
         // Adjust terrain material properties to make it brighter
-        FloatBuffer terrainAmbient = BufferUtils.createFloatBuffer(4).put(new float[] {0.6f, 0.8f, 0.6f, 1.0f});// Higher ambient light reflection
+        FloatBuffer terrainAmbient = BufferUtils.createFloatBuffer(4).put(new float[] { 0.6f, 0.8f, 0.6f, 1.0f });// Higher ambient light reflection
         FloatBuffer terrainDiffuse = BufferUtils.createFloatBuffer(4).put(new float[] { 0.7f, 0.9f, 0.7f, 1.0f }); // Higher diffuse reflection for visibility
         FloatBuffer terrainSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.2f, 0.2f, 0.2f, 1.0f }); // Light specular reflection for subtle shine
 
@@ -721,6 +1056,32 @@ class Terrain {
     }
 
     private float triangleArea(float x1, float z1, float x2, float z2, float x3, float z3) {
-        return Math.abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
+        return Math.abs((x1 * (z2 - z3) + x2 * (z3 - x1) + x3 * (x1 - z2)) / 2.0f);
     }
 }
+
+// class GameClient {
+//     public static GameClient initializeClient(String playerName) {
+//         // Placeholder for client initialization
+//         return new GameClient();
+//     }
+
+//     public boolean isGameStarted() {
+//         // Placeholder for checking if the game has started
+//         return true;
+//     }
+
+//     public int getPlayerNumber() {
+//         // Placeholder for getting the player number
+//         return 1;
+//     }
+
+//     public void sendTankState(TankState state) {
+//         // Placeholder for sending tank state to the server
+//     }
+
+//     public Map<String, TankState> getOtherTanks() {
+//         // Placeholder for getting other tanks' states from the server
+//         return null;
+//     }
+// }
