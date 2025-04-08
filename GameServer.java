@@ -9,7 +9,9 @@ public class GameServer {
     private static final int PORT = 12344;
     private static final int MAX_PLAYERS = 2;
     private List<ClientHandler> clients = new ArrayList<>();
-    private Map<String, TankState> tankStates = new HashMap<>(); // Store tank states by player name
+    // NEW CODE: Added a map to store tank states for each player
+    private Map<String, TankState> tankStates = new HashMap<>();
+    // NEW CODE: Added a counter to track the number of players connected
     private int playerCount = 0;
 
     public static void main(String[] args) {
@@ -57,11 +59,13 @@ public class GameServer {
         }
     }
 
+    // NEW CODE: Method to update tank state and broadcast it to all clients
     public synchronized void updateTankState(String playerName, TankState state) {
         tankStates.put(playerName, state);
         broadcastTankStates();
     }
 
+    // NEW CODE: Method to broadcast tank states to all clients
     public synchronized void broadcastTankStates() {
         String broadcastMessage = TankState.toBroadcastString(tankStates);
         for (ClientHandler client : clients) {
@@ -112,6 +116,7 @@ public class GameServer {
             out.flush(); // Ensure the message is sent immediately
         }
 
+        // NEW CODE: Method to send tank states to this client
         public void sendTankStates(Map<String, TankState> tankStates) {
             out.println(TankState.toBroadcastString(tankStates));
         }

@@ -27,18 +27,19 @@ public class TankSimulation {
     private long window;
     private int width = 800;
     private int height = 600;
-    private List<Tank> tanks = new LinkedList<>(); // List to store multiple tanks
-    private int currentTankIndex = 0; // Index of the currently controlled tank
+    private List<Tank> tanks = new LinkedList<>();
+    private int currentTankIndex = 0;
     private Terrain terrain;
     private GameClient client;
     private String playerName;
-    private boolean autoStart; // if true, skip waiting for START
+    private boolean autoStart;
 
+    // NEW CODE:
     // New constructor accepting the player's name, autoStart flag, and GameClient
     public TankSimulation(String playerName, boolean autoStart, GameClient client) {
         this.playerName = playerName;
         this.autoStart = autoStart;
-        this.client = client;  // Store the client reference
+        this.client = client;
     }
 
     public static void main(String[] args) {
@@ -60,11 +61,12 @@ public class TankSimulation {
         }
     }
 
+    // NEW CODE: cleanup method to close the client connection and GLFW window
     private void cleanup()
     {
         if (client != null)
         {
-            client.stop(); // Close the client connection
+            client.stop(); // close the client connection
         }
         if (window != 0)
         {
@@ -158,6 +160,8 @@ public class TankSimulation {
                 System.out.println("Local tank (Red) at: " + localTank.getX() + "," + localTank.getZ());
                 System.out.println("Remote tank (Blue) at: " + remoteTank.getX() + "," + remoteTank.getZ());
             } else {
+
+                // NEW CODE:
                 // Player 2 setup
                 System.out.println("Initializing Player 2 tanks...");
                 Tank remoteTank = new Tank(-5, 0, -5, 1.0f, 0.0f, 0.0f); // Red tank (remote)
@@ -198,9 +202,9 @@ public class TankSimulation {
 
     private void loop() {
         try {
-            // Time tracking for frame rate limiting
+            // NEW CODE: Time tracking for frame rate limiting
             long lastTime = System.nanoTime();
-            double ns = 1000000000.0 / 60.0; // 60 FPS
+            double ns = 1000000000.0 / 60.0;
             double delta = 0;
 
             while (!GLFW.glfwWindowShouldClose(window)) {
@@ -234,6 +238,7 @@ public class TankSimulation {
         }
     }
 
+    // NEW CODE: updateGameState method to handle tank movement and network state
     private void updateGameState() {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
@@ -277,6 +282,7 @@ public class TankSimulation {
         }
     }
 
+    // NEW CODE: syncFromState method in Tank class to update tank position from network state
     private void render() {
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glLoadIdentity();
@@ -450,14 +456,15 @@ public class TankSimulation {
         return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     }
 
-    private void handleTankSwitching() {
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_1) == GLFW.GLFW_PRESS) {
-            currentTankIndex = 0; // Switch to Tank 1
-        } else if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_2) == GLFW.GLFW_PRESS) {
-            currentTankIndex = 1; // Switch to Tank 2
-        }
-    }
+    // private void handleTankSwitching() {
+    //     if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_1) == GLFW.GLFW_PRESS) {
+    //         currentTankIndex = 0; // Switch to Tank 1
+    //     } else if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_2) == GLFW.GLFW_PRESS) {
+    //         currentTankIndex = 1; // Switch to Tank 2
+    //     }
+    // }
 
+    // NEW CODE: updateTankMovement method to handle local tank movement
     private void updateTankMovement() {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
@@ -485,6 +492,7 @@ public class TankSimulation {
     }
 }
 
+// NEW CODE: Tank class with additional methods for target positions and remote state
 class Tank {
     protected float x, y, z;  // Change from private to protected
     private float targetX, targetY, targetZ, targetAngle;
@@ -1059,29 +1067,3 @@ class Terrain {
         return Math.abs((x1 * (z2 - z3) + x2 * (z3 - x1) + x3 * (x1 - z2)) / 2.0f);
     }
 }
-
-// class GameClient {
-//     public static GameClient initializeClient(String playerName) {
-//         // Placeholder for client initialization
-//         return new GameClient();
-//     }
-
-//     public boolean isGameStarted() {
-//         // Placeholder for checking if the game has started
-//         return true;
-//     }
-
-//     public int getPlayerNumber() {
-//         // Placeholder for getting the player number
-//         return 1;
-//     }
-
-//     public void sendTankState(TankState state) {
-//         // Placeholder for sending tank state to the server
-//     }
-
-//     public Map<String, TankState> getOtherTanks() {
-//         // Placeholder for getting other tanks' states from the server
-//         return null;
-//     }
-// }
