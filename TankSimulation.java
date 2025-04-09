@@ -296,11 +296,6 @@ public class TankSimulation {
 }
 
 class Tank {
-    /* 
-    TODO from Ethan: need to make a lot of the variables used in the render function field variables instead of declared in the function.
-    I want to do this because I need these values for calculating the bullet's initial position and trajectory.
-    */ 
-
     private float x, y, z; // Tank's position
     private float r, g, b; // Color of the tank
     private float speed = 0; // Current speed
@@ -366,6 +361,21 @@ class Tank {
 
     public float getZ() {
         return z;
+    }
+
+    // added by Ethan
+    public float getR() {
+        return r;
+    }
+
+    // added by Ethan
+    public float getG() {
+        return g;
+    }
+
+    // added by Ethan
+    public float getB() {
+        return b;
     }
 
     public float getAngle() {
@@ -966,33 +976,60 @@ class Bullet {
     private float directionX, directionY, directionZ; // Direction of the bullet
 
     public Bullet(Tank tank, Terrain terrain) {
+        // first just getting the rgb because that's easy
+        this.r = tank.getR();
+        this.g = tank.getG();
+        this.b = tank.getB();
 
-        float x = tank.getX();
-        float z = tank.getZ();
+        // the coords of the tank
+        float tankX = tank.getX();
+        float tankY = tank.getY();
+        float tankZ = tank.getZ();
         
         // Get the heights of each wheel
-        float frontLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z + 1.5f);
-        float frontRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z + 1.5f);
-        float midFrontLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z + 0.75f);
-        float midFrontRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z + 0.75f);
-        float midRearLeftWheelY = terrain.getTerrianHeightAt(x - 0.45f, z - 0.75f);
-        float midRearRightWheelY = terrain.getTerrianHeightAt(x + 0.45f, z - 0.75f);
-        float rearLeftWheelY = terrain.getTerrianHeightAt(x - 0.9f, z - 1.5f);
-        float rearRightWheelY = terrain.getTerrianHeightAt(x + 0.9f, z - 1.5f);
+        float frontLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.9f, tankZ + 1.5f);
+        float frontRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ + 1.5f);
+        float midFrontLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.45f, tankZ + 0.75f);
+        float midFrontRightWheelY = terrain.getTerrianHeightAt(tankX + 0.45f, tankZ + 0.75f);
+        float midRearLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.45f, tankZ - 0.75f);
+        float midRearRightWheelY = terrain.getTerrianHeightAt(tankX + 0.45f, tankZ - 0.75f);
+        float rearLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.9f, tankZ - 1.5f);
+        float rearRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ - 1.5f);
 
         // Calculate the average height of the tank body (based on wheel heights)
         float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
 
-        // Calculate pitch (forward/backward tilt) and roll (side tilt)
+        // Calculate pitch (forward/backward tilt) Soand roll (side tilt) of tank, which are also used to determine the bullet's speed in each direction
         float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
         float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
 
-        // this.x = x;
-        // this.y = y;
-        // this.z = z;
-        // this.directionX = directionX;
-        // this.directionY = directionY;
-        // this.directionZ = directionZ;
+        // A vector with its z component at 1 and everything else at 0. This is forward, the initial orientation of the tank when it spawns.
+        // We are finding the direction of the bullet based on the pitch and roll of the tank and the angle of the turret.
+        float[] forwardPointingVector = {0,0,1}; 
+
+        float pitchTimesTenInRads = (float) Math.toRadians(pitch * 10.0f); // Convert pitch to radians for usage below
+        float rollTimesTenInRads = (float) Math.toRadians(roll * 10.0f); // Convert roll to radians for usage below
+        float turretAngleInRads = (float) Math.toRadians(tank.getCombinedTurretAngle()); // Convert angle to radians for usage below
+
+        float[] rotatedVector = rotateY(forwardPointingVector, turretAngleInRads); // Rotate the vector by the turret angle
+        rotatedVector = rotateX(rotatedVector, pitchTimesTenInRads); // Rotate the vector by the pitch angle
+        rotatedVector = rotateZ(rotatedVector, rollTimesTenInRads); // Rotate the vector by the roll angle
+
+        rotatedVector = normalize(rotatedVector); // Normalize the vector so that it's length is 1, effectively making it a direction vector
+        directionX = rotatedVector[0]; // Assign the x component of the direction vector to the bullet's directionX
+        directionY = rotatedVector[1]; // Assign the y component of the direction vector to the bullet's directionY
+        directionZ = rotatedVector[2]; // Assign the z component of the direction vector to the bullet's directionZ
+
+        // Now that we have this direction vector, we can apply it to the offset from the tank's position to the end of the barrel to find out where the bullet should spawn
+        // that is, the initial values of x, y, and z.
+        float[] initialOffsetFromTank = {0, averageHeight + tank.getTankBodyYOffset(), tank.getTurretLength() + tank.getBarrelLength()}; // The offset from the tank to the end of the barrel (where the bullet spawns)
+        float[] rotatedOffset = rotateY(initialOffsetFromTank, turretAngleInRads); // Rotate the offset by the turret angle
+        rotatedOffset = rotateX(rotatedOffset, pitchTimesTenInRads); // Rotate the offset by the pitch angle
+        rotatedOffset = rotateZ(rotatedOffset, rollTimesTenInRads); // Rotate the offset by the roll angle
+
+        this.x = tankX + rotatedOffset[0]; // Assign the x component of the offset to the bullet's x position
+        this.y = tankY + rotatedOffset[1]; // Assign the y component of the offset to the bullet's y position
+        this.z = tankZ + rotatedOffset[2]; // Assign the z component of the offset to the bullet's z position
     }
 
     // TODO see if this works?
@@ -1015,5 +1052,43 @@ class Bullet {
     //     GL11.glPopMatrix();
     // }
 
+    // rotates a vector around the X-axis by a given angle
+    public float[] rotateX(float[] vector, float rads) {
+        float cos = (float) Math.cos(rads);
+        float sin = (float) Math.sin(rads);
+        return new float[] {
+            vector[0],
+            vector[1] * cos - vector[2] * sin,
+            vector[1] * sin + vector[2] * cos
+        };
+    }
 
+    // rotates a vector around the Y-axis by a given angle
+    public float[] rotateY(float[] vector, float rads) {
+        float cos = (float) Math.cos(rads);
+        float sin = (float) Math.sin(rads);
+        return new float[] {
+            vector[0] * cos + vector[2] * sin,
+            vector[1],
+            -vector[0] * sin + vector[2] * cos
+        };
+    }
+
+    // rotates a vector around the Z-axis by a given angle
+    public float[] rotateZ(float[] vector, float rads) {
+        float cos = (float) Math.cos(rads);
+        float sin = (float) Math.sin(rads);
+        return new float[] {
+            vector[0] * cos - vector[1] * sin,
+            vector[0] * sin + vector[1] * cos,
+            vector[2]
+        };
+    }
+
+
+    // normalizes a vector to have a magnitude of 1
+    public float[] normalize(float[] vector) {
+        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+        return new float[] {vector[0] / length, vector[1] / length, vector[2] / length};
+    }
 }
