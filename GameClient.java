@@ -7,6 +7,7 @@ import java.net.*;
 import java.util.*;
 
 public class GameClient {
+    // NEW CODE: Variables for player name and number, game state, and socket connection
     private String playerName;
     private int playerNumber;
     private boolean gameStarted = false;
@@ -22,10 +23,10 @@ public class GameClient {
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // Send player name to server
+            // NEW CODE: Send player name to server
             out.println(playerName);
 
-            // Read player number first
+            // NEW CODE: Read player number first
             String response = in.readLine();
             if (response == null || response.equals("SERVER_FULL")) {
                 throw new IOException("Server is full. Please try again later.");
@@ -38,7 +39,8 @@ public class GameClient {
                 throw new IOException("Invalid player number format: " + response);
             }
 
-            // Start listener thread for server messages
+            // NEW CODE: Start a new thread to read from the server
+            // This thread will handle the initial connection and game start signal
             new Thread(() -> {
                 try {
                     String line;
@@ -50,7 +52,7 @@ public class GameClient {
                             break; // Exit the read loop after receiving START
                         }
                     }
-                    // Start a new thread for handling game updates after START
+                    // NEW CODE: Start a new thread for handling game updates after START
                     if (gameStarted) {
                         new Thread(() -> {
                             try {
@@ -71,15 +73,18 @@ public class GameClient {
                 }
             }).start();
 
+        // NEW CODE: Debugging if failed to connect to server
         } catch (IOException e) {
             throw new RuntimeException("Failed to connect to server: " + e.getMessage(), e);
         }
     }
 
+    // NEW CODE: Factory method to initialize the client with a player name
     public static GameClient initializeClient(String playerName) {
         return new GameClient(playerName);
     }
 
+    // NEW CODE: Getters for player name, number, and game state
     public boolean isGameStarted() {
         return gameStarted;
     }
@@ -92,6 +97,7 @@ public class GameClient {
         out.println(state.toString());
     }
 
+    // NEW CODE: parseTankStates method to handle incoming tank states from the server
     private void parseTankStates(String data) {
         // Format "playerName:x,y,z,angle;playerName2:..."
         String[] segments = data.split(";");
@@ -105,10 +111,12 @@ public class GameClient {
         otherTanks = updated;
     }
 
+    // NEW CODE: getOtherTanks method to get the current state of other tanks
     public Map<String, TankState> getOtherTanks() {
         return otherTanks;
     }
 
+    // NEW CODE: stop method to close the socket connection
     public void stop() {
         try {
             socket.close();
@@ -117,6 +125,7 @@ public class GameClient {
         }
     }
 
+    // NEW CODE: Main method to run the client and connect to the server
     public static void main(String[] args) {
         java.util.Scanner scanner = new java.util.Scanner(System.in);
         System.out.print("Enter your name: ");
@@ -135,7 +144,7 @@ public class GameClient {
         System.out.println("Game started. Player number: " + client.getPlayerNumber());
         System.out.println("Starting TankSimulation...");
 
-        // Pass the client instance to TankSimulation
+        // pass the client instance to TankSimulation
         TankSimulation game = new TankSimulation(name, true, client);
         game.run();
     }

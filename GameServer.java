@@ -19,6 +19,11 @@ public class GameServer {
     }
 
     public void start() {
+        // RUN OVER A NETWORK INSTEAD OF LOCALHOST
+        // try (ServerSocket serverSocket = new ServerSocket(PORT, 0, InetAddress.getByName("0.0.0.0"))) {
+        // System.out.println("Server started on all interfaces. IP: " +
+        // InetAddress.getLocalHost().getHostAddress() +
+        // " Port: " + PORT);
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Server started. Waiting for 2 players...");
 
