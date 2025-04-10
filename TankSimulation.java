@@ -1,6 +1,5 @@
 // javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
 // java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
@@ -123,15 +122,15 @@ public class TankSimulation {
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
 
         // Set brighter ambient, diffuse, and specular light
-        FloatBuffer ambientLight = BufferUtils.createFloatBuffer(4).put(new float[] { 0.4f, 0.4f, 0.4f, 1.0f }); // Increase ambient light
+        FloatBuffer ambientLight = BufferUtils.createFloatBuffer(4).put(new float[] { 0.4f, 0.4f, 0.4f, 1.0f });
         ambientLight.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_AMBIENT, ambientLight);
 
-        FloatBuffer diffuseLight = BufferUtils.createFloatBuffer(4).put(new float[] { 1.0f, 1.0f, 1.0f, 1.0f }); // Increase diffuse light
+        FloatBuffer diffuseLight = BufferUtils.createFloatBuffer(4).put(new float[] { 1.0f, 1.0f, 1.0f, 1.0f });
         diffuseLight.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_DIFFUSE, diffuseLight);
 
-        FloatBuffer specularLight = BufferUtils.createFloatBuffer(4).put(new float[] { 1.0f, 1.0f, 1.0f, 1.0f }); // Increase specular light
+        FloatBuffer specularLight = BufferUtils.createFloatBuffer(4).put(new float[] { 1.0f, 1.0f, 1.0f, 1.0f });
         specularLight.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_SPECULAR, specularLight);
 
@@ -140,15 +139,15 @@ public class TankSimulation {
         GL11.glColorMaterial(GL11.GL_FRONT_AND_BACK, GL11.GL_AMBIENT_AND_DIFFUSE);
 
         // Set material properties
-        FloatBuffer materialAmbient = BufferUtils.createFloatBuffer(4).put(new float[] { 0.6f, 0.6f, 0.6f, 1.0f }); // Brighter ambient reflection
+        FloatBuffer materialAmbient = BufferUtils.createFloatBuffer(4).put(new float[] { 0.6f, 0.6f, 0.6f, 1.0f });
         materialAmbient.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_AMBIENT, materialAmbient);
 
-        FloatBuffer materialDiffuse = BufferUtils.createFloatBuffer(4).put(new float[] { 0.8f, 0.8f, 0.8f, 1.0f }); // Brighter diffuse reflection
+        FloatBuffer materialDiffuse = BufferUtils.createFloatBuffer(4).put(new float[] { 0.8f, 0.8f, 0.8f, 1.0f });
         materialDiffuse.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_DIFFUSE, materialDiffuse);
 
-        FloatBuffer materialSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 1.0f, 1.0f, 1.0f, 1.0f }); // Specular highlight
+        FloatBuffer materialSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 1.0f, 1.0f, 1.0f, 1.0f });
         materialSpecular.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, materialSpecular);
 
@@ -161,7 +160,7 @@ public class TankSimulation {
     }
 
     private void setPerspectiveProjection(float fov, float aspect, float zNear, float zFar) {
-        float ymax = (float) (zNear * Math.tan(Math.toRadians (fov / 2.0)));
+        float ymax = (float) (zNear * Math.tan(Math.toRadians(fov / 2.0)));
         float xmax = ymax * aspect;
 
         GL11.glMatrixMode(GL11.GL_PROJECTION);
@@ -189,8 +188,8 @@ public class TankSimulation {
         float cameraHeight = 5.0f; // Height above the tank
 
         // Calculate the desired camera position behind and above the tank
-        float targetCameraX = tank.getX() - (float)(Math.sin(Math.toRadians(tank.getAngle())) * cameraDistance);
-        float targetCameraZ = tank.getZ() - (float)(Math.cos(Math.toRadians(tank.getAngle())) * cameraDistance);
+        float targetCameraX = tank.getX() - (float) (Math.sin(Math.toRadians(tank.getAngle())) * cameraDistance);
+        float targetCameraZ = tank.getZ() - (float) (Math.cos(Math.toRadians(tank.getAngle())) * cameraDistance);
         float targetCameraY = tank.getY() + cameraHeight;
 
         // Smoothly interpolate between the current camera position and the target position
@@ -199,14 +198,15 @@ public class TankSimulation {
         cameraY = lerp(cameraY, targetCameraY, alpha);
         cameraZ = lerp(cameraZ, targetCameraZ, alpha);
 
-        //  Reset the modelview matrix
+        // Reset the modelview matrix
         GL11.glLoadIdentity();
 
         // Set the camera to look at the tank
         gluLookAt(cameraX, cameraY, cameraZ, tank.getX(), tank.getY(), tank.getZ(), 0.0f, 1.0f, 0.0f);
     }
 
-    private void gluLookAt(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ) {
+    private void gluLookAt(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX,
+            float upY, float upZ) {
         // Calculate the forward vector (the direction the camera is looking)
         float[] forward = { centerX - eyeX, centerY - eyeY, centerZ - eyeZ };
         normalize(forward); // Normalize the forward vector
@@ -224,12 +224,12 @@ public class TankSimulation {
         // Step 5: Create the lookAt matrix (view matrix)
         FloatBuffer viewMatrix = BufferUtils.createFloatBuffer(16);
         viewMatrix.put(new float[] {
-            side[0], up[0], -forward[0], 0,
-            side[1], up[1], -forward[1], 0,
-            side[2], up[2], -forward[2], 0,
-            -dotProduct(side, new float[] { eyeX, eyeY, eyeZ }),
-            -dotProduct(up, new float[] { eyeX, eyeY, eyeZ }),
-            dotProduct(forward, new float[] { eyeX, eyeY, eyeZ }), 1
+                side[0], up[0], -forward[0], 0,
+                side[1], up[1], -forward[1], 0,
+                side[2], up[2], -forward[2], 0,
+                -dotProduct(side, new float[] { eyeX, eyeY, eyeZ }),
+                -dotProduct(up, new float[] { eyeX, eyeY, eyeZ }),
+                dotProduct(forward, new float[] { eyeX, eyeY, eyeZ }), 1
         });
         viewMatrix.flip(); // Flip the buffer for use by OpenGL
 
@@ -240,7 +240,7 @@ public class TankSimulation {
     // Utility functions for vector math
     private void normalize(float[] vector) {
         float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        if(length != 0) {
+        if (length != 0) {
             vector[0] /= length;
             vector[1] /= length;
             vector[2] /= length;
@@ -249,9 +249,9 @@ public class TankSimulation {
 
     private float[] crossProduct(float[] a, float[] b) {
         return new float[] {
-            a[1] * b[2] - a[2] * b[1],
-            a[2] * b[0] - a[0] * b[2],
-            a[0] * b[1] - a[1] * b[0]
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
         };
     }
 
@@ -284,16 +284,14 @@ public class TankSimulation {
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
             tank.turnRight();
         }
-
         // Turret rotation control
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS) {
-            tank.rotateTurretLeft();  // Rotate turret to the left
+            tank.rotateTurretLeft(); // Rotate turret to the left
         }
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS) {
-            tank.rotateTurretRight();  // Rotate turret to the right
+            tank.rotateTurretRight(); // Rotate turret to the right
         }
     }
-
 }
 
 class Tank {
@@ -306,8 +304,8 @@ class Tank {
     private float friction = 0.98f;
     private float turnSpeed = 2.0f; // Speed of turning
     // New member variables for turret
-    private float turretAngle = 0.0f;  // Turret rotation angle (initially facing forward)
-    private float turretRotationSpeed = 2.0f;  // Speed at which the turret rotates (adjust as needed)
+    private float turretAngle = 0.0f; // Turret rotation angle (initially facing forward)
+    private float turretRotationSpeed = 2.0f; // Speed at which the turret rotates (adjust as needed)
     private float turretLength = 1.2f;
     private float turretWidth = 0.85f;
     private float turretHeight = 0.4f;
@@ -321,17 +319,17 @@ class Tank {
     private float tankBodyHeight = 0.5f; // The height of the tank body
     private float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
 
-    private float barrelElevation = 0.0f;  // Barrel elevation angle
-    private float barrelElevationSpeed = 1.0f;  // Speed of barrel movement
-    private final float MIN_ELEVATION = -10.0f;  // Minimum elevation angle (downward)
-    private final float MAX_ELEVATION = 15.0f;  // Maximum elevation angle (upward)
+    private float barrelElevation = 0.0f; // Barrel elevation angle
+    private float barrelElevationSpeed = 1.0f; // Speed of barrel movement
+    private final float MIN_ELEVATION = -10.0f; // Minimum elevation angle (downward)
+    private final float MAX_ELEVATION = 15.0f; // Maximum elevation angle (upward)
 
     public void rotateTurretLeft() {
-        turretAngle += turretRotationSpeed;  // Adjust this according to how much you want to rotate
+        turretAngle += turretRotationSpeed; // Adjust this according to how much you want to rotate
     }
 
     public void rotateTurretRight() {
-        turretAngle -= turretRotationSpeed;  // Adjust this according to how much you want to rotate
+        turretAngle -= turretRotationSpeed; // Adjust this according to how much you want to rotate
     }
 
     // Methods to move the barrel up and down
@@ -390,7 +388,7 @@ class Tank {
 
     // added by Ethan
     public float getCombinedTurretAngle() {
-        return turretAngle + angle; // Combine turret and tank angles for determing angle at which the bullet will leave the 
+        return turretAngle + angle;
     }
 
     // added by Ethan
@@ -447,7 +445,6 @@ class Tank {
         speed *= friction;
     }
 
-
     public void render(Terrain terrain) {
         // Number of wheels per side
         int numWheelsPerSide = 8;
@@ -463,7 +460,7 @@ class Tank {
             leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
             rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
         }
-        
+
         // Calculate the average height of the tank body (based on wheel heights)
         float totalHeight = 0.0f;
         for (int i = 0; i < numWheelsPerSide; i++) {
@@ -477,7 +474,6 @@ class Tank {
 
         // Adjust the height of the tank body to be above the wheels
         float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
-
         float frontLeftWheelY = leftWheelHeights[0];
         float frontRightWheelY = rightWheelHeights[0];
         float rearLeftWheelY = leftWheelHeights[leftWheelHeights.length - 1];
@@ -488,28 +484,23 @@ class Tank {
         float midRearRightWheelY = rightWheelHeights[rightWheelHeights.length - 2];
 
         // Calculate pitch (foward/backword tilt) and roll (side tilt)
-        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
-        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
-
+        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f
+                - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f
+                - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
         // Apply the calculated pitch, roll, and average height to the tank body
         GL11.glPushMatrix();
-
         // Translate the tank body to the average height plus the offset to position it above the wheels
         GL11.glTranslatef(x, averageHeight + tankBodyYOffset, z);
-
         // Rotate the tank body for pitch (tilt forward/backward) and roll (tilt left/right)
         GL11.glRotatef(roll * 10.0f, 0, 0, 1); // Roll around the Z-axis
         GL11.glRotatef(pitch * 10.0f, 1, 0, 0); // Pitch around the X-axis
-
         // Rotate the tank in the direction it's facing
         GL11.glRotatef(angle, 0, 1, 0);
-
         // Render the tank body
         renderTankBody(); // Call the updated renderTankBody method
-
         // Render the wheels
         renderWheels(terrain); // Render the wheels based on terrain
-
         // Render the turret on top of the tank body
         renderTurret();
 
@@ -618,13 +609,13 @@ class Tank {
         GL11.glColor3f(r, g, b); // Set the color of the tank body
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for Phong
 
-        FloatBuffer tankBodySpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.9f, 0.9f, 0.9f, 1.0f});
+        FloatBuffer tankBodySpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.9f, 0.9f, 0.9f, 1.0f });
         tankBodySpecular.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, tankBodySpecular);
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 64.0f); // High shininess for tank body
 
         float frontLength = 5.0f; // Length of the front part of the tank
-        float backLength = 4.0f;  // Length of the back part of the tank
+        float backLength = 4.0f; // Length of the back part of the tank
         float yOffset = 0.2f; // Add a y-offset to the tank body
 
         GL11.glPushMatrix();
@@ -689,7 +680,7 @@ class Tank {
         GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for wheels
         GL11.glShadeModel(GL11.GL_SMOOTH);
 
-        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.5f, 0.5f, 0.5f, 1.0f});
+        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.5f, 0.5f, 0.5f, 1.0f });
         wheelSpecular.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, wheelSpecular);
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 16.0f); // Low shininess for wheels
@@ -701,7 +692,7 @@ class Tank {
         GL11.glBegin(GL11.GL_TRIANGLE_FAN);
         GL11.glVertex3f(0.0f, 0.0f, -width / 2); // Center of the circle
         for (int i = 0; i <= numSegments; i++) {
-            double angle =  2 * Math.PI * i / numSegments;
+            double angle = 2 * Math.PI * i / numSegments;
             GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, -width / 2);
         }
         GL11.glEnd();
@@ -710,14 +701,14 @@ class Tank {
         GL11.glBegin(GL11.GL_TRIANGLE_FAN);
         GL11.glVertex3f(0.0f, 0.0f, width / 2); // Center of the circle
         for (int i = 0; i <= numSegments; i++) {
-            double angle =  2 * Math.PI * i / numSegments;
+            double angle = 2 * Math.PI * i / numSegments;
             GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, width / 2);
         }
         GL11.glEnd();
 
         GL11.glBegin(GL11.GL_QUAD_STRIP);
         for (int i = 0; i <= numSegments; i++) {
-            double angle =  2 * Math.PI * i / numSegments;
+            double angle = 2 * Math.PI * i / numSegments;
             float x = (float) Math.cos(angle) * radius;
             float y = (float) Math.sin(angle) * radius;
 
@@ -732,38 +723,38 @@ class Tank {
 
     private void renderWheels(Terrain terrain) {
         GL11.glColor3f(0.0f, 0.0f, 0.0f); // Black color for wheels
-    
+
         // Define the wheel height offset
         float wheelHeightOffset = 0.8f; // Lower the wheels by this amount relative to the tank body
         float tankLength = 3.5f; // Length of the tank body
         int numWheelsPerSide = 8; // Number of wheels per side
         float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
-    
+
         // Render wheels on the left side
-    for (int i = 0; i <= numWheelsPerSide; i++) {
-        float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
-        float wheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + wheelZ); // Get terrain height
+        for (int i = 0; i <= numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
+            float wheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + wheelZ); // Get terrain height
 
-        GL11.glPushMatrix();
-        GL11.glTranslatef(-0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
+            GL11.glPushMatrix();
+            GL11.glTranslatef(-0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
 
-        // Make the front wheels smaller and raised up
-        if (i == 0) { // First two wheels
-            GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
-            GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+            // Make the front wheels smaller and raised up
+            if (i == 0) { // First two wheels
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+            }
+
+            // Make the back wheels smaller and raised up
+            if (i == numWheelsPerSide) { // Last two wheels
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
+            }
+
+            renderWheel();
+            GL11.glPopMatrix();
         }
 
-        // Make the back wheels smaller and raised up
-        if (i == numWheelsPerSide) { // Last two wheels
-            GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
-            GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
-        }
-
-        renderWheel();
-        GL11.glPopMatrix();
-    }
-
-       // Render wheels on the right side
+        // Render wheels on the right side
         for (int i = 0; i <= numWheelsPerSide; i++) {
             float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
             float wheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + wheelZ); // Get terrain height
@@ -799,13 +790,16 @@ class OBJLoader {
         while ((line = reader.readLine()) != null) {
             String[] tokens = line.split("\\s+");
             if (tokens[0].equals("v")) {
-                float[] vertex = {Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3])};
+                float[] vertex = { Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]),
+                        Float.parseFloat(tokens[3]) };
                 vertices.add(vertex);
             } else if (tokens[0].equals("vn")) {
-                float[] normal = {Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3])};
+                float[] normal = { Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]),
+                        Float.parseFloat(tokens[3]) };
                 normals.add(normal);
             } else if (tokens[0].equals("f")) {
-                int[] face = {Integer.parseInt(tokens[1].split("/")[0]) - 1, Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1};
+                int[] face = { Integer.parseInt(tokens[1].split("/")[0]) - 1,
+                        Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1 };
                 faces.add(face);
             }
         }
@@ -880,9 +874,9 @@ class Terrain {
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for better Phong effect
 
         // Adjust terrain material properties to make it brighter
-        FloatBuffer terrainAmbient = BufferUtils.createFloatBuffer(4).put(new float[] {0.6f, 0.8f, 0.6f, 1.0f});// Higher ambient light reflection
-        FloatBuffer terrainDiffuse = BufferUtils.createFloatBuffer(4).put(new float[] { 0.7f, 0.9f, 0.7f, 1.0f }); // Higher diffuse reflection for visibility
-        FloatBuffer terrainSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.2f, 0.2f, 0.2f, 1.0f }); // Light specular reflection for subtle shine
+        FloatBuffer terrainAmbient = BufferUtils.createFloatBuffer(4).put(new float[] { 0.6f, 0.8f, 0.6f, 1.0f });
+        FloatBuffer terrainDiffuse = BufferUtils.createFloatBuffer(4).put(new float[] { 0.7f, 0.9f, 0.7f, 1.0f }); 
+        FloatBuffer terrainSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.2f, 0.2f, 0.2f, 1.0f });
 
         terrainAmbient.flip();
         terrainDiffuse.flip();
@@ -939,7 +933,8 @@ class Terrain {
 
             // Check if the point (x, z) is inside the triangle
             if (isPointInTriangle(x, z, v1X, v1Z, v2X, v2Z, v3X, v3Z)) {
-                // If the point is in the triangle, calculate the height using barycentric interpolation
+                // If the point is in the triangle, calculate the height using barycentric
+                // interpolation
                 return interpolateHeight(x, z, v1X, v1Y, v1Z, v2X, v2Y, v2Z, v3X, v3Y, v3Z);
             }
         }
@@ -947,7 +942,8 @@ class Terrain {
         return 0.0f;
     }
 
-    private boolean isPointInTriangle(float px, float pz, float v1X, float v1Z, float v2X, float v2Z, float v3X, float v3Z) {
+    private boolean isPointInTriangle(float px, float pz, float v1X, float v1Z, float v2X, float v2Z, float v3X,
+            float v3Z) {
         float d1 = sign(px, pz, v1X, v1Z, v2X, v2Z);
         float d2 = sign(px, pz, v2X, v2Z, v3X, v3Z);
         float d3 = sign(px, pz, v3X, v3Z, v1X, v1Z);
@@ -962,7 +958,8 @@ class Terrain {
         return (px - v2X) * (v1Z - v2Z) - (v1X - v2X) * (pz - v2Z);
     }
 
-    private float interpolateHeight(float x, float z, float v1X, float v1Y, float v1Z, float v2X, float v2Y, float v2Z, float v3X, float v3Y, float v3Z) {
+    private float interpolateHeight(float x, float z, float v1X, float v1Y, float v1Z, float v2X, float v2Y, float v2Z,
+            float v3X, float v3Y, float v3Z) {
         // Calculate the areas needed for barycentric interpolation
         float areaTotal = triangleArea(v1X, v1Z, v2X, v2Z, v3X, v3Z);
         float area1 = triangleArea(x, z, v2X, v2Z, v3X, v3Z);
@@ -1000,7 +997,7 @@ class Bullet {
         float tankX = tank.getX();
         float tankY = tank.getY();
         float tankZ = tank.getZ();
-        
+
         // Get the heights of each wheel
         float frontLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.9f, tankZ + 1.5f);
         float frontRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ + 1.5f);
@@ -1012,21 +1009,23 @@ class Bullet {
         float rearRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ - 1.5f);
 
         // Calculate the average height of the tank body (based on wheel heights)
-        float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
+        float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY
+                + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
 
         // Calculate pitch (forward/backward tilt) Soand roll (side tilt) of tank, which are also used to determine the bullet's speed in each direction
-        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
-        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f
+                - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f
+                - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
 
-        // A vector with its z component at 1 and everything else at 0. This is forward, the initial orientation of the tank when it spawns.
-        // We are finding the direction of the bullet based on the pitch and roll of the tank and the angle of the turret.
-        float[] forwardPointingVector = {0,0,1}; 
+        float[] forwardPointingVector = { 0, 0, 1 };
 
         float pitchTimesTenInRads = (float) Math.toRadians(pitch * 10.0f); // Convert pitch to radians for usage below
         float rollTimesTenInRads = (float) Math.toRadians(roll * 10.0f); // Convert roll to radians for usage below
         float turretAngleInRads = (float) Math.toRadians(tank.getCombinedTurretAngle()); // Convert angle to radians for usage below
 
-        float[] rotatedVector = rotateY(forwardPointingVector, turretAngleInRads); // Rotate the vector by the turret angle
+        float[] rotatedVector = rotateY(forwardPointingVector, turretAngleInRads); // Rotate the vector by the turret
+                                                                                   // angle
         rotatedVector = rotateX(rotatedVector, pitchTimesTenInRads); // Rotate the vector by the pitch angle
         rotatedVector = rotateZ(rotatedVector, rollTimesTenInRads); // Rotate the vector by the roll angle
 
@@ -1035,9 +1034,8 @@ class Bullet {
         directionY = rotatedVector[1]; // Assign the y component of the direction vector to the bullet's directionY
         directionZ = rotatedVector[2]; // Assign the z component of the direction vector to the bullet's directionZ
 
-        // Now that we have this direction vector, we can apply it to the offset from the tank's position to the end of the barrel to find out where the bullet should spawn
-        // that is, the initial values of x, y, and z.
-        float[] initialOffsetFromTank = {0, averageHeight + tank.getTankBodyYOffset(), tank.getTurretLength() + tank.getBarrelLength()}; // The offset from the tank to the end of the barrel (where the bullet spawns)
+        float[] initialOffsetFromTank = { 0, averageHeight + tank.getTankBodyYOffset(),
+                tank.getTurretLength() + tank.getBarrelLength() }; // The offset from the tank to the end of the barrel (where the bullet spawns)
         float[] rotatedOffset = rotateY(initialOffsetFromTank, turretAngleInRads); // Rotate the offset by the turret angle
         rotatedOffset = rotateX(rotatedOffset, pitchTimesTenInRads); // Rotate the offset by the pitch angle
         rotatedOffset = rotateZ(rotatedOffset, rollTimesTenInRads); // Rotate the offset by the roll angle
@@ -1072,9 +1070,9 @@ class Bullet {
         float cos = (float) Math.cos(rads);
         float sin = (float) Math.sin(rads);
         return new float[] {
-            vector[0],
-            vector[1] * cos - vector[2] * sin,
-            vector[1] * sin + vector[2] * cos
+                vector[0],
+                vector[1] * cos - vector[2] * sin,
+                vector[1] * sin + vector[2] * cos
         };
     }
 
@@ -1083,9 +1081,9 @@ class Bullet {
         float cos = (float) Math.cos(rads);
         float sin = (float) Math.sin(rads);
         return new float[] {
-            vector[0] * cos + vector[2] * sin,
-            vector[1],
-            -vector[0] * sin + vector[2] * cos
+                vector[0] * cos + vector[2] * sin,
+                vector[1],
+                -vector[0] * sin + vector[2] * cos
         };
     }
 
@@ -1094,15 +1092,15 @@ class Bullet {
         float cos = (float) Math.cos(rads);
         float sin = (float) Math.sin(rads);
         return new float[] {
-            vector[0] * cos - vector[1] * sin,
-            vector[0] * sin + vector[1] * cos,
-            vector[2]
+                vector[0] * cos - vector[1] * sin,
+                vector[0] * sin + vector[1] * cos,
+                vector[2]
         };
     }
 
     // normalizes a vector to have a magnitude of 1
     public float[] normalize(float[] vector) {
         float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        return new float[] {vector[0] / length, vector[1] / length, vector[2] / length};
+        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
     }
 }
