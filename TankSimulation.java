@@ -1,7 +1,8 @@
 // javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation
 
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 
 import java.io.BufferedReader;
@@ -9,6 +10,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.File;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -19,93 +21,289 @@ import java.nio.FloatBuffer;
 import org.lwjgl.BufferUtils;
 
 import java.util.LinkedList;
+import java.util.Map;
 
 public class TankSimulation {
     private long window;
     private int width = 800;
     private int height = 600;
-    private List<Tank> tanks = new LinkedList<>(); // List to store multiple tanks
-    private int currentTankIndex = 0; // Index of the currently controlled tank
+    private List<Tank> tanks = new LinkedList<>();
+    private int currentTankIndex = 0;
     private Terrain terrain;
+    private GameClient client;
+    private String playerName;
+    private boolean autoStart;
+
+    // NEW CODE:
+    // New constructor accepting the player's name, autoStart flag, and GameClient
+    public TankSimulation(String playerName, boolean autoStart, GameClient client) {
+        this.playerName = playerName;
+        this.autoStart = autoStart;
+        this.client = client;
+    }
 
     public static void main(String[] args) {
-        new TankSimulation().run();
+        // called from GameClient
+        System.out.println("Please run GameClient to start the game.");
     }
 
     public void run() {
-        init();
-        loop();
-        GLFW.glfwDestroyWindow(window);
-        GLFW.glfwTerminate();
+        System.out.println("Initializing game...");
+        try {
+            init();
+            System.out.println("Game window created. Starting game loop...");
+            loop();
+        } catch (Exception e) {
+            System.err.println("Error running game: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            cleanup();
+        }
+    }
+
+    // NEW CODE: cleanup method to close the client connection and GLFW window
+    private void cleanup()
+    {
+        if (client != null)
+        {
+            client.stop(); // close the client connection
+        }
+        if (window != 0)
+        {
+            GLFW.glfwDestroyWindow(window);
+            GLFW.glfwTerminate();
+        }
     }
 
     private void init() {
-        if (!GLFW.glfwInit()) {
-            throw new IllegalStateException("Unable to initialize GLFW");
+        System.out.println("Attempting to initialize GLFW...");
+        try {
+            // Initialize GLFW
+            if (!GLFW.glfwInit()) {
+                throw new IllegalStateException("Unable to initialize GLFW");
+            }
+            System.out.println("GLFW initialized successfully");
+
+            // Configure GLFW
+            GLFW.glfwDefaultWindowHints();
+            GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+            GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_TRUE);
+            GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 1);
+            GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 1);
+
+            // Create the window
+            window = GLFW.glfwCreateWindow(width, height, "Tank Simulation - Player " + playerName, 0, 0);
+            if (window == 0) {
+                throw new RuntimeException("Failed to create the GLFW window");
+            }
+
+            // Center window
+            GLFWVidMode vidmode = GLFW.glfwGetVideoMode(GLFW.glfwGetPrimaryMonitor());
+            if (vidmode != null) {
+                GLFW.glfwSetWindowPos(
+                    window,
+                    (vidmode.width() - width) / 2,
+                    (vidmode.height() - height) / 2
+                );
+            }
+
+            // Make the OpenGL context current
+            GLFW.glfwMakeContextCurrent(window);
+            GLFW.glfwSwapInterval(1);
+            GLFW.glfwShowWindow(window);
+
+            // Initialize OpenGL
+            GL.createCapabilities();
+
+            // Enable depth testing
+            GL11.glEnable(GL11.GL_DEPTH_TEST);
+            GL11.glDepthFunc(GL11.GL_LESS);
+
+            // Initialize lighting
+            initLighting();
+
+            // Set up the perspective projection
+            float aspectRatio = (float) width / height;
+            setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 1000.0f);
+
+            // Initialize game objects
+            try {
+                System.out.println("Loading terrain...");
+                terrain = new Terrain("terrain.obj");
+                System.out.println("Terrain loaded successfully");
+            } catch (Exception e) {
+                System.err.println("Error loading terrain: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            // Initialize tanks with different starting positions based on player number
+            if (client.getPlayerNumber() == 1) {
+                // Player 1 setup
+                System.out.println("Initializing Player 1 tanks...");
+                Tank localTank = new Tank(-5, 0, -5, 1.0f, 0.0f, 0.0f);  // Red tank (local)
+                Tank remoteTank = new Tank(5, 0, 5, 0.0f, 0.0f, 1.0f);   // Blue tank (remote)
+
+                // Set tank properties
+                localTank.setRemote(false);
+                remoteTank.setRemote(true);
+
+                // Initialize positions
+                localTank.initializeTargetPositions();
+                remoteTank.initializeTargetPositions();
+
+                // Add tanks in order (local first, then remote)
+                tanks.clear();
+                tanks.add(localTank);
+                tanks.add(remoteTank);
+
+                System.out.println("Player 1 tanks initialized:");
+                System.out.println("Local tank (Red) at: " + localTank.getX() + "," + localTank.getZ());
+                System.out.println("Remote tank (Blue) at: " + remoteTank.getX() + "," + remoteTank.getZ());
+            } else {
+
+                // NEW CODE:
+                // Player 2 setup
+                System.out.println("Initializing Player 2 tanks...");
+                Tank remoteTank = new Tank(-5, 0, -5, 1.0f, 0.0f, 0.0f); // Red tank (remote)
+                Tank localTank = new Tank(5, 0, 5, 0.0f, 0.0f, 1.0f);    // Blue tank (local)
+
+                // Set tank properties
+                remoteTank.setRemote(true);
+                localTank.setRemote(false);
+
+                // Initialize positions
+                remoteTank.initializeTargetPositions();
+                localTank.initializeTargetPositions();
+
+                // Add tanks in order (remote first, then local)
+                tanks.clear();
+                tanks.add(remoteTank);
+                tanks.add(localTank);
+
+                System.out.println("Player 2 tanks initialized:");
+                System.out.println("Remote tank (Red) at: " + remoteTank.getX() + "," + remoteTank.getZ());
+                System.out.println("Local tank (Blue) at: " + localTank.getX() + "," + localTank.getZ());
+            }
+
+            // Debug print tank list
+            System.out.println("\nFinal tank list:");
+            for (int i = 0; i < tanks.size(); i++) {
+                Tank tank = tanks.get(i);
+                System.out.println("Tank " + i + ": position=" + tank.getX() + "," + tank.getZ() +
+                                  " remote=" + (tank.isRemote() ? "yes" : "no"));
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error during initialization: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-
-        window = GLFW.glfwCreateWindow(width, height, "Tank Simulation", 0, 0);
-        if (window == 0) {
-            throw new RuntimeException("Failed to create the GLFW window");
-        }
-
-        GLFW.glfwMakeContextCurrent(window);
-        GL.createCapabilities();
-
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glLoadIdentity();
-        setPerspectiveProjection(45.0f, (float) 800 / (float) 600, 0.1f, 100.0f);
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-
-        initLighting();
-
-        GL11.glEnable(GL11.GL_COLOR_MATERIAL);
-        GL11.glColorMaterial(GL11.GL_FRONT_AND_BACK, GL11.GL_AMBIENT_AND_DIFFUSE);
-
-        // Define light properties
-        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f });
-        lightPosition.flip();
-        GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
-
-        GL11.glEnable(GL11.GL_DEPTH_TEST);
-        GL11.glDepthFunc(GL11.GL_LEQUAL);
-
-        // Clear the screen and depth buffer
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-
-        // Initialize multiple tanks
-        tanks.add(new Tank(0, 0, 0, 1.0f, 0.0f, 0.0f)); // Tank 1
-        tanks.add(new Tank(5, 0, 5, 0.01f, 0.0f, 1.0f)); // Tank 2
-
-        // Initialize the terrain
-        terrain = new Terrain("terrain.obj"); // Load the terrain from an OBJ file
     }
 
     private void loop() {
-        while (!GLFW.glfwWindowShouldClose(window)) {
-            GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-            GL11.glLoadIdentity();
+        try {
+            // NEW CODE: Time tracking for frame rate limiting
+            long lastTime = System.nanoTime();
+            double ns = 1000000000.0 / 60.0;
+            double delta = 0;
 
-            // Update tank movement based on user input
-            updateTankMovement();
+            while (!GLFW.glfwWindowShouldClose(window)) {
+                long now = System.nanoTime();
+                delta += (now - lastTime) / ns;
+                lastTime = now;
 
-            // Update the camera to track the currently controlled tank
-            updateCamera(tanks.get(currentTankIndex));
+                // Process all pending events
+                GLFW.glfwPollEvents();
 
-            // Render terrain
+                // Update game state at fixed time steps
+                while (delta >= 1) {
+                    updateGameState();
+                    delta--;
+                }
+
+                // Render
+                render();
+
+                // Swap buffers
+                GLFW.glfwSwapBuffers(window);
+
+                // Break if window should close
+                if (GLFW.glfwWindowShouldClose(window)) {
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error in game loop: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // NEW CODE: updateGameState method to handle tank movement and network state
+    private void updateGameState() {
+        int localIndex = client.getPlayerNumber() - 1;
+        Tank localTank = tanks.get(localIndex);
+        Tank remoteTank = tanks.get(localIndex == 0 ? 1 : 0);
+
+        // Update local tank movement
+        updateTankMovement();
+
+        // Only update and send state for local tank
+        if (localTank != null) {
+            localTank.update();
+            TankState state = new TankState(
+                localTank.getX(),
+                localTank.getY(),
+                localTank.getZ(),
+                localTank.getAngle()
+            );
+            client.sendTankState(state);
+
+            System.out.println("Local tank state sent: " + state);
+        }
+
+        // Update remote tank position from network state
+        Map<String, TankState> otherTanks = client.getOtherTanks();
+        if (otherTanks != null && !otherTanks.isEmpty()) {
+            int otherIndex = (localIndex == 0) ? 1 : 0;
+            if (otherIndex < tanks.size()) {
+                String otherPlayerName = null;
+                for (String name : otherTanks.keySet()) {
+                    if (!name.equals(playerName)) {
+                        otherPlayerName = name;
+                        break;
+                    }
+                }
+
+                if (otherPlayerName != null) {
+                    TankState state = otherTanks.get(otherPlayerName);
+                    tanks.get(otherIndex).syncFromState(state);
+                }
+            }
+        }
+    }
+
+    // NEW CODE: syncFromState method in Tank class to update tank position from network state
+    private void render() {
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        GL11.glLoadIdentity();
+
+        int localIndex = client.getPlayerNumber() - 1;
+        if (localIndex >= 0 && localIndex < tanks.size()) {
+            Tank localTank = tanks.get(localIndex);
+            if (localTank != null) {
+                updateCamera(localTank);
+            }
+        }
+
+        // Render terrain and tanks
+        if (terrain != null) {
             terrain.render();
+        }
 
-            // Render and update all tanks
-            for (Tank tank : tanks) {
-                tank.update();
+        for (Tank tank : tanks) {
+            if (tank != null) {
                 tank.render(terrain);
             }
-
-            // Handle tank switching
-            handleTankSwitching();
-
-            GLFW.glfwSwapBuffers(window);
-            GLFW.glfwPollEvents();
         }
     }
 
@@ -117,7 +315,7 @@ public class TankSimulation {
         GL11.glEnable(GL11.GL_LEQUAL);
 
         // Set the light position
-        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f });
+        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f }); 
         lightPosition.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
 
@@ -188,8 +386,8 @@ public class TankSimulation {
         float cameraHeight = 5.0f; // Height above the tank
 
         // Calculate the desired camera position behind and above the tank
-        float targetCameraX = tank.getX() - (float) (Math.sin(Math.toRadians(tank.getAngle())) * cameraDistance);
-        float targetCameraZ = tank.getZ() - (float) (Math.cos(Math.toRadians(tank.getAngle())) * cameraDistance);
+        float targetCameraX = tank.getX() - (float)(Math.sin(Math.toRadians(tank.getAngle())) * cameraDistance);
+        float targetCameraZ = tank.getZ() - (float)(Math.cos(Math.toRadians(tank.getAngle())) * cameraDistance);
         float targetCameraY = tank.getY() + cameraHeight;
 
         // Smoothly interpolate between the current camera position and the target position
@@ -240,7 +438,7 @@ public class TankSimulation {
     // Utility functions for vector math
     private void normalize(float[] vector) {
         float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        if (length != 0) {
+        if(length != 0) {
             vector[0] /= length;
             vector[1] /= length;
             vector[2] /= length;
@@ -259,43 +457,90 @@ public class TankSimulation {
         return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     }
 
-    private void handleTankSwitching() {
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_1) == GLFW.GLFW_PRESS) {
-            currentTankIndex = 0; // Switch to Tank 1
-        } else if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_2) == GLFW.GLFW_PRESS) {
-            currentTankIndex = 1; // Switch to Tank 2
-        }
-    }
+    // private void handleTankSwitching() {
+    //     if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_1) == GLFW.GLFW_PRESS) {
+    //         currentTankIndex = 0; // Switch to Tank 1
+    //     } else if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_2) == GLFW.GLFW_PRESS) {
+    //         currentTankIndex = 1; // Switch to Tank 2
+    //     }
+    // }
 
+    // NEW CODE: updateTankMovement method to handle local tank movement
     private void updateTankMovement() {
-        // Get the currently controlled tank
-        Tank tank = tanks.get(currentTankIndex);
+        int localIndex = client.getPlayerNumber() - 1;
+        Tank localTank = tanks.get(localIndex);
 
-        // Tank body movement
+        // Debug print to verify which tank we're controlling
+        System.out.println("Controlling tank at index " + localIndex +
+                          " (Player " + client.getPlayerNumber() + ")" +
+                          " at position: " + localTank.getX() + "," + localTank.getZ());
+
+// Only control local tank
+        if (localTank != null) {
+            // Tank body movement
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) {
-            tank.accelerate();
-        }
+                localTank.accelerate();
+            }
+           
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) {
-            tank.decelerate();
-        }
+                localTank.decelerate();
+            }
+           
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) {
-            tank.turnLeft();
-        }
+                localTank.turnLeft();
+            }
+           
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
-            tank.turnRight();
-        }
-        // Turret rotation control
+                localTank.turnRight();
+            }
+            // Turret rotation control
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS) {
-            tank.rotateTurretLeft(); // Rotate turret to the left
+            localTank.rotateTurretLeft(); // Rotate turret to the left
         }
         if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS) {
-            tank.rotateTurretRight(); // Rotate turret to the right
+            localTank.rotateTurretRight(); // Rotate turret to the right
         }
+    }
     }
 }
 
+// NEW CODE: Tank class with additional methods for target positions and remote state
 class Tank {
-    private float x, y, z; // Tank's position
+    protected float x, y, z;  // Change from private to protected
+    private float targetX, targetY, targetZ, targetAngle;
+    private boolean isRemote = false;
+
+    public boolean isRemote() {
+        return isRemote;
+    }
+
+    public void setRemote(boolean remote) {
+        this.isRemote = remote;
+        System.out.println("Tank at (" + x + "," + z + ") set to " +
+                          (remote ? "remote" : "local"));
+    }
+
+    // Add setter methods
+    public void setTargetX(float x) { this.targetX = x; }
+    public void setTargetY(float y) { this.targetY = y; }
+    public void setTargetZ(float z) { this.targetZ = z; }
+    public void setTargetAngle(float angle) { this.targetAngle = angle; }
+
+    // Add getter methods
+    public float getTargetX() { return targetX; }
+    public float getTargetY() { return targetY; }
+    public float getTargetZ() { return targetZ; }
+    public float getTargetAngle() { return targetAngle; }
+
+    // Add a method to initialize target positions
+    public void initializeTargetPositions() {
+        this.targetX = this.x;
+        this.targetY = this.y;
+        this.targetZ = this.z;
+        this.targetAngle = this.angle;
+    }
+
+    private static final float LERP_FACTOR = 0.1f;
     private float r, g, b; // Color of the tank
     private float speed = 0; // Current speed
     private float angle = 0; // Direction the tank is facing
@@ -437,11 +682,20 @@ class Tank {
     }
 
     public void update() {
-        // Update position based on speed and angle
-        x += speed * Math.sin(Math.toRadians(angle));
-        z += speed * Math.cos(Math.toRadians(angle));
+        // Only update position if this is a local tank
+        if (!isRemote && Math.abs(speed) > 0.0001f) {
+            float newX = x + speed * (float)Math.sin(Math.toRadians(angle));
+            float newZ = z + speed * (float)Math.cos(Math.toRadians(angle));
 
-        // Apply friction to slow down the tank naturally
+            x = newX;
+            z = newZ;
+
+            // Update target positions
+            targetX = x;
+            targetZ = z;
+        }
+
+        // Apply friction to slow down the tank
         speed *= friction;
     }
 
@@ -680,7 +934,7 @@ class Tank {
         GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for wheels
         GL11.glShadeModel(GL11.GL_SMOOTH);
 
-        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.5f, 0.5f, 0.5f, 1.0f });
+        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.5f, 0.5f, 0.5f, 1.0f});
         wheelSpecular.flip();
         GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, wheelSpecular);
         GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 16.0f); // Low shininess for wheels
@@ -778,6 +1032,22 @@ class Tank {
             GL11.glPopMatrix();
         }
     }
+
+    public void syncFromState(TankState state) {
+        // Directly update position without interpolation for remote tank
+        this.x = state.getX();
+        this.y = state.getY();
+        this.z = state.getZ();
+        this.angle = state.getAngle();
+
+        // Update target positions to match current position
+        this.targetX = this.x;
+        this.targetY = this.y;
+        this.targetZ = this.z;
+        this.targetAngle = this.angle;
+
+        System.out.println("Tank position synced to: " + x + "," + z);
+    }
 }
 
 class OBJLoader {
@@ -790,17 +1060,14 @@ class OBJLoader {
         while ((line = reader.readLine()) != null) {
             String[] tokens = line.split("\\s+");
             if (tokens[0].equals("v")) {
-                float[] vertex = { Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]),
-                        Float.parseFloat(tokens[3]) };
+                float[] vertex = {Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3])};
                 vertices.add(vertex);
             } else if (tokens[0].equals("vn")) {
-                float[] normal = { Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]),
-                        Float.parseFloat(tokens[3]) };
+                float[] normal = {Float.parseFloat(tokens[1]), Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3])};
                 normals.add(normal);
             } else if (tokens[0].equals("f")) {
-                int[] face = { Integer.parseInt(tokens[1].split("/")[0]) - 1,
-                        Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1 };
-                faces.add(face);
+                int[] face = {Integer.parseInt(tokens[1].split("/")[0]) - 1, Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1};
+                faces.add(face);    
             }
         }
 
@@ -862,10 +1129,19 @@ class Terrain {
     private Model model;
 
     public Terrain(String objFilePath) {
+        File file = new File(objFilePath);
+        if (!file.exists()) {
+            System.err.println("Error: terrain.obj not found at: " + file.getAbsolutePath());
+            throw new RuntimeException("terrain.obj not found");
+        }
         try {
+            System.out.println("Loading terrain from: " + file.getAbsolutePath());
             this.model = OBJLoader.loadModel(objFilePath);
+            System.out.println("Terrain loaded successfully");
         } catch (IOException e) {
+            System.err.println("Error loading terrain: " + e.getMessage());
             e.printStackTrace();
+            throw new RuntimeException("Failed to load terrain", e);
         }
     }
 
@@ -874,9 +1150,9 @@ class Terrain {
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for better Phong effect
 
         // Adjust terrain material properties to make it brighter
-        FloatBuffer terrainAmbient = BufferUtils.createFloatBuffer(4).put(new float[] { 0.6f, 0.8f, 0.6f, 1.0f });
-        FloatBuffer terrainDiffuse = BufferUtils.createFloatBuffer(4).put(new float[] { 0.7f, 0.9f, 0.7f, 1.0f }); 
-        FloatBuffer terrainSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.2f, 0.2f, 0.2f, 1.0f });
+        FloatBuffer terrainAmbient = BufferUtils.createFloatBuffer(4).put(new float[] {0.6f, 0.8f, 0.6f, 1.0f});// Higher ambient light reflection
+        FloatBuffer terrainDiffuse = BufferUtils.createFloatBuffer(4).put(new float[] { 0.7f, 0.9f, 0.7f, 1.0f }); // Higher diffuse reflection for visibility
+        FloatBuffer terrainSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.2f, 0.2f, 0.2f, 1.0f }); // Light specular reflection for subtle shine
 
         terrainAmbient.flip();
         terrainDiffuse.flip();
