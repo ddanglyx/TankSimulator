@@ -577,6 +577,8 @@ class Tank {
     // Tank body dimensions
     private float tankBodyHeight = 0.5f; // The height of the tank body
     private float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
+    int numWheelsPerSide = 8;
+    float tankLength = 3.5f; // Length of the tank body
 
     private float barrelElevation = 0.0f; // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f; // Speed of barrel movement
@@ -686,6 +688,16 @@ class Tank {
         return barrelLength;
     }
 
+    // added by Ethan
+    public float getTankLength() {
+        return tankLength;
+    }
+
+    // added by Ethan
+    public int getNumWheelsPerSide() {
+        return numWheelsPerSide;
+    }
+
     public void accelerate() {
         if (speed < maxSpeed) {
             speed += acceleration;
@@ -726,8 +738,6 @@ class Tank {
 
     public void render(Terrain terrain) {
         // Number of wheels per side
-        int numWheelsPerSide = 8;
-        float tankLength = 3.5f; // Length of the tank body
         float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
 
         // Calculate the heights of all wheels
@@ -1005,8 +1015,6 @@ class Tank {
 
         // Define the wheel height offset
         float wheelHeightOffset = 0.8f; // Lower the wheels by this amount relative to the tank body
-        float tankLength = 3.5f; // Length of the tank body
-        int numWheelsPerSide = 8; // Number of wheels per side
         float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
 
         // Render wheels on the left side
@@ -1318,7 +1326,9 @@ class Bullet {
         float barrelLength = tank.getBarrelLength();
         float turretYOffset = tank.getTurretYOffset();
         float tankBodyYOffset = tank.getTankBodyYOffset();
-        float yOffset = turretYOffset + tankBodyYOffset; // Additional height offset for the bullet
+        float averageHeight = getAverageHeight(tank, terrain);
+        float tankBodyHeight = tank.getTankBodyHeight();
+        float yOffset = averageHeight + tankBodyHeight + turretYOffset + tankBodyYOffset + 0.2f; // Additional height offset for the bullet
         float[] barrelTipOffset = {0, yOffset, barrelLength};
 
         // Rotate the barrel tip offset based on turret and barrel angles
@@ -1395,6 +1405,34 @@ class Bullet {
                 vector[0] * sin + vector[1] * cos,
                 vector[2]
         };
+    }
+
+    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
+    // but there some of the values besides average height are still needed. This only returns averageHeight.
+    public float getAverageHeight(Tank tank, Terrain terrain) {
+        int numWheelsPerSide = tank.getNumWheelsPerSide();
+        float tankLength = tank.getTankLength();
+
+        // Number of wheels per side
+        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
+
+        // Calculate the heights of all wheels
+        float[] leftWheelHeights = new float[numWheelsPerSide];
+        float[] rightWheelHeights = new float[numWheelsPerSide];
+
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
+            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
+            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
+        }
+
+        // Calculate the average height of the tank body (based on wheel heights)
+        float totalHeight = 0.0f;
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
+        }
+
+        return totalHeight / (numWheelsPerSide * 2);
     }
 
     // normalizes a vector to have a magnitude of 1
