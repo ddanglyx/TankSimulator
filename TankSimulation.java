@@ -1314,7 +1314,7 @@ class Bullet {
         // Calculate the direction vector for the bullet
         float[] forwardVector = { 0, 0, 1 }; // Forward direction
         float[] rotatedVector = rotateY(forwardVector, turretAngleInRads); // Rotate by turret angle
-        rotatedVector = rotateX(rotatedVector, barrelElevationInRads); // Rotate by barrel elevation
+        rotatedVector = rotateX(rotatedVector, -barrelElevationInRads); // Rotate by barrel elevation
         rotatedVector = normalize(rotatedVector); // Normalize to get a unit vector
 
         // Set the bullet's direction
