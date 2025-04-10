@@ -451,4 +451,5 @@ lwjgl-release-3.3.4-custom/assimp_license.txt
 .vscode
 .lwjgl
 .idea
-TankSimulator.iml
+tanksim4.iml
+out
