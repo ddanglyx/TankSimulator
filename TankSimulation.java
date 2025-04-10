@@ -1,5 +1,6 @@
 // javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
 // java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
@@ -304,16 +305,26 @@ class Tank {
     private float acceleration = 0.01f;
     private float friction = 0.98f;
     private float turnSpeed = 2.0f; // Speed of turning
-    private float width = 2.31f; // Width of the tank body (added this variable)
     // New member variables for turret
     private float turretAngle = 0.0f;  // Turret rotation angle (initially facing forward)
     private float turretRotationSpeed = 2.0f;  // Speed at which the turret rotates (adjust as needed)
+    private float turretLength = 1.2f;
+    private float turretWidth = 0.85f;
+    private float turretHeight = 0.4f;
+    private float turretYOffset = 0.5f;
+
+    private float barrelRadius = 0.15f;
+    private float barrelLength = 2.0f;
+    private int numSegments = 36;
+
+    // Tank body dimensions
+    private float tankBodyHeight = 0.5f; // The height of the tank body
+    private float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
+
     private float barrelElevation = 0.0f;  // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f;  // Speed of barrel movement
     private final float MIN_ELEVATION = -10.0f;  // Minimum elevation angle (downward)
     private final float MAX_ELEVATION = 15.0f;  // Maximum elevation angle (upward)
-
-
 
     public void rotateTurretLeft() {
         turretAngle += turretRotationSpeed;  // Adjust this according to how much you want to rotate
@@ -331,7 +342,6 @@ class Tank {
     public void lowerBarrel() {
         barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
     }
-
 
     public Tank(float x, float y, float z, float r, float g, float b) {
         this.x = x;
@@ -354,8 +364,58 @@ class Tank {
         return z;
     }
 
+    // added by Ethan
+    public float getR() {
+        return r;
+    }
+
+    // added by Ethan
+    public float getG() {
+        return g;
+    }
+
+    // added by Ethan
+    public float getB() {
+        return b;
+    }
+
     public float getAngle() {
         return angle;
+    }
+
+    // added by Ethan
+    public float getTurretAngle() {
+        return turretAngle;
+    }
+
+    // added by Ethan
+    public float getCombinedTurretAngle() {
+        return turretAngle + angle; // Combine turret and tank angles for determing angle at which the bullet will leave the 
+    }
+
+    // added by Ethan
+    public float getTankBodyHeight() {
+        return tankBodyHeight;
+    }
+
+    // added by Ethan
+    public float getTankBodyYOffset() {
+        return tankBodyYOffset;
+    }
+
+    // added by Ethan
+    public float getTurretLength() {
+        return turretLength;
+    }
+
+    // added by Ethan
+    public float getTurretYOffset() {
+        return turretYOffset;
+    }
+
+    // added by Ethan
+    public float getBarrelLength() {
+        return barrelLength;
     }
 
     public void accelerate() {
@@ -554,7 +614,6 @@ class Tank {
         GL11.glPopMatrix();
     }
 
-
     private void renderTankBody() {
         GL11.glColor3f(r, g, b); // Set the color of the tank body
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for Phong
@@ -566,11 +625,13 @@ class Tank {
 
         float frontLength = 5.0f; // Length of the front part of the tank
         float backLength = 4.0f;  // Length of the back part of the tank
-        float height = 0.8f;
         float yOffset = 0.2f; // Add a y-offset to the tank body
 
         GL11.glPushMatrix();
         GL11.glTranslatef(0.0f, yOffset, 0.0f); // Apply the y-offset
+        float length = 4.0f;
+        float width = 2.1f;
+        float height = 0.5f;
 
         GL11.glBegin(GL11.GL_QUADS);
 
@@ -919,5 +980,129 @@ class Terrain {
 
     private float triangleArea(float x1, float z1, float x2, float z2, float x3, float z3) {
         return Math.abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
+    }
+}
+
+class Bullet {
+    private static final float SPEED = 0.1f; // Speed of the bullet
+
+    private float x, y, z; // Bullet's position
+    private float r, g, b; // Bullet's color
+    private float directionX, directionY, directionZ; // Direction of the bullet
+
+    public Bullet(Tank tank, Terrain terrain) {
+        // first just getting the rgb because that's easy
+        this.r = tank.getR();
+        this.g = tank.getG();
+        this.b = tank.getB();
+
+        // the coords of the tank
+        float tankX = tank.getX();
+        float tankY = tank.getY();
+        float tankZ = tank.getZ();
+        
+        // Get the heights of each wheel
+        float frontLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.9f, tankZ + 1.5f);
+        float frontRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ + 1.5f);
+        float midFrontLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.45f, tankZ + 0.75f);
+        float midFrontRightWheelY = terrain.getTerrianHeightAt(tankX + 0.45f, tankZ + 0.75f);
+        float midRearLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.45f, tankZ - 0.75f);
+        float midRearRightWheelY = terrain.getTerrianHeightAt(tankX + 0.45f, tankZ - 0.75f);
+        float rearLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.9f, tankZ - 1.5f);
+        float rearRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ - 1.5f);
+
+        // Calculate the average height of the tank body (based on wheel heights)
+        float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
+
+        // Calculate pitch (forward/backward tilt) Soand roll (side tilt) of tank, which are also used to determine the bullet's speed in each direction
+        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+
+        // A vector with its z component at 1 and everything else at 0. This is forward, the initial orientation of the tank when it spawns.
+        // We are finding the direction of the bullet based on the pitch and roll of the tank and the angle of the turret.
+        float[] forwardPointingVector = {0,0,1}; 
+
+        float pitchTimesTenInRads = (float) Math.toRadians(pitch * 10.0f); // Convert pitch to radians for usage below
+        float rollTimesTenInRads = (float) Math.toRadians(roll * 10.0f); // Convert roll to radians for usage below
+        float turretAngleInRads = (float) Math.toRadians(tank.getCombinedTurretAngle()); // Convert angle to radians for usage below
+
+        float[] rotatedVector = rotateY(forwardPointingVector, turretAngleInRads); // Rotate the vector by the turret angle
+        rotatedVector = rotateX(rotatedVector, pitchTimesTenInRads); // Rotate the vector by the pitch angle
+        rotatedVector = rotateZ(rotatedVector, rollTimesTenInRads); // Rotate the vector by the roll angle
+
+        rotatedVector = normalize(rotatedVector); // Normalize the vector so that it's length is 1, effectively making it a direction vector
+        directionX = rotatedVector[0]; // Assign the x component of the direction vector to the bullet's directionX
+        directionY = rotatedVector[1]; // Assign the y component of the direction vector to the bullet's directionY
+        directionZ = rotatedVector[2]; // Assign the z component of the direction vector to the bullet's directionZ
+
+        // Now that we have this direction vector, we can apply it to the offset from the tank's position to the end of the barrel to find out where the bullet should spawn
+        // that is, the initial values of x, y, and z.
+        float[] initialOffsetFromTank = {0, averageHeight + tank.getTankBodyYOffset(), tank.getTurretLength() + tank.getBarrelLength()}; // The offset from the tank to the end of the barrel (where the bullet spawns)
+        float[] rotatedOffset = rotateY(initialOffsetFromTank, turretAngleInRads); // Rotate the offset by the turret angle
+        rotatedOffset = rotateX(rotatedOffset, pitchTimesTenInRads); // Rotate the offset by the pitch angle
+        rotatedOffset = rotateZ(rotatedOffset, rollTimesTenInRads); // Rotate the offset by the roll angle
+
+        this.x = tankX + rotatedOffset[0]; // Assign the x component of the offset to the bullet's x position
+        this.y = tankY + rotatedOffset[1]; // Assign the y component of the offset to the bullet's y position
+        this.z = tankZ + rotatedOffset[2]; // Assign the z component of the offset to the bullet's z position
+    }
+
+    // See if this works?
+    public void update() {
+        x += directionX * SPEED;
+        y += directionY * SPEED;
+        z += directionZ * SPEED;
+    }
+
+    public void render() {
+        GL11.glPushMatrix();
+        GL11.glTranslatef(x, y, z);
+        GL11.glColor3f(1.0f, 0.0f, 0.0f); // Red color for the bullet
+        GL11.glBegin(GL11.GL_QUADS);
+        GL11.glVertex3f(-0.1f, -0.1f, -0.1f);
+        GL11.glVertex3f(0.1f, -0.1f, -0.1f);
+        GL11.glVertex3f(0.1f, 0.1f, -0.1f);
+        GL11.glVertex3f(-0.1f, 0.1f, -0.1f);
+        GL11.glEnd();
+        GL11.glPopMatrix();
+    }
+
+    // rotates a vector around the X-axis by a given angle
+    public float[] rotateX(float[] vector, float rads) {
+        float cos = (float) Math.cos(rads);
+        float sin = (float) Math.sin(rads);
+        return new float[] {
+            vector[0],
+            vector[1] * cos - vector[2] * sin,
+            vector[1] * sin + vector[2] * cos
+        };
+    }
+
+    // rotates a vector around the Y-axis by a given angle
+    public float[] rotateY(float[] vector, float rads) {
+        float cos = (float) Math.cos(rads);
+        float sin = (float) Math.sin(rads);
+        return new float[] {
+            vector[0] * cos + vector[2] * sin,
+            vector[1],
+            -vector[0] * sin + vector[2] * cos
+        };
+    }
+
+    // rotates a vector around the Z-axis by a given angle
+    public float[] rotateZ(float[] vector, float rads) {
+        float cos = (float) Math.cos(rads);
+        float sin = (float) Math.sin(rads);
+        return new float[] {
+            vector[0] * cos - vector[1] * sin,
+            vector[0] * sin + vector[1] * cos,
+            vector[2]
+        };
+    }
+
+    // normalizes a vector to have a magnitude of 1
+    public float[] normalize(float[] vector) {
+        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+        return new float[] {vector[0] / length, vector[1] / length, vector[2] / length};
     }
 }
