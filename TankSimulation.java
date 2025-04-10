@@ -206,14 +206,14 @@ public class TankSimulation {
     }
 
     private void gluLookAt(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ) {
-        // Step 1: Calculate the forward vector (the direction the camera is looking)
+        // Calculate the forward vector (the direction the camera is looking)
         float[] forward = { centerX - eyeX, centerY - eyeY, centerZ - eyeZ };
         normalize(forward); // Normalize the forward vector
 
-        // Step 2: Define the up vector (Y-axis typically)
+        // Define the up vector (Y-axis typically)
         float[] up = { upX, upY, upZ };
 
-        // Step 3: Calculate the side (right) vector using cross product of forward and up
+        // Calculate the side (right) vector using cross product of forward and up
         float[] side = crossProduct(forward, up);
         normalize(side); // Normalize the side vector
 
@@ -232,7 +232,7 @@ public class TankSimulation {
         });
         viewMatrix.flip(); // Flip the buffer for use by OpenGL
 
-        // Step 6: Apply the view matrix
+        // Apply the view matrix
         GL11.glMultMatrixf(viewMatrix);
     }
 
