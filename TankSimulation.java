@@ -575,8 +575,8 @@ class Tank {
     private int numSegments = 36;
 
     // Tank body dimensions
-    private float tankBodyHeight = 0.5f; // The height of the tank body
-    private float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
+    public float tankBodyHeight = 0.5f; // The height of the tank body
+    public float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
 
     private float barrelElevation = 0.0f; // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f; // Speed of barrel movement
@@ -1234,8 +1234,7 @@ class Terrain {
 
             // Check if the point (x, z) is inside the triangle
             if (isPointInTriangle(x, z, v1X, v1Z, v2X, v2Z, v3X, v3Z)) {
-                // If the point is in the triangle, calculate the height using barycentric
-                // interpolation
+                // If the point is in the triangle, calculate the height using barycentric interpolation
                 return interpolateHeight(x, z, v1X, v1Y, v1Z, v2X, v2Y, v2Z, v3X, v3Y, v3Z);
             }
         }
@@ -1317,8 +1316,9 @@ class Bullet {
         // Calculate the barrel's tip position
         float barrelLength = tank.getBarrelLength();
         float turretYOffset = tank.getTurretYOffset();
+        float tankBodyHeight = tank.getTankBodyHeight();
         float tankBodyYOffset = tank.getTankBodyYOffset();
-        float yOffset = turretYOffset + tankBodyYOffset; // Additional height offset for the bullet
+        float yOffset = tankBodyHeight +  turretYOffset + tankBodyYOffset; // Additional height offset for the bullet
         float[] barrelTipOffset = {0, yOffset, barrelLength};
 
         // Rotate the barrel tip offset based on turret and barrel angles
