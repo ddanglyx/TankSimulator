@@ -1504,7 +1504,7 @@ class Bullet {
         return totalHeight / (numWheelsPerSide * 2);
     }
 
-    // normalizes a vector to have a magnitude of 1
+    // normalizes a vector to have a magnitude of 1.
     public float[] normalize(float[] vector) {
         float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
         return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
