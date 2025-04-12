@@ -1,5 +1,5 @@
-// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation
+// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" TankSimulation.java
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" TankSimulation
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
@@ -941,7 +941,7 @@ class Tank {
         GL11.glPopMatrix();
     }
 
-    private void renderTankBody() {
+    public void renderTankBody(TankState tankState) {
         GL11.glColor3f(r, g, b); // Set the color of the tank body
         GL11.glShadeModel(GL11.GL_SMOOTH); // Smooth shading for Phong
 

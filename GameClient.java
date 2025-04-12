@@ -1,5 +1,5 @@
-// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" GameClient.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" GameClient
+// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" GameClient.java
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" GameClient
 
 import org.lwjgl.glfw.*;
 import java.io.*;
@@ -112,16 +112,20 @@ public class GameClient {
         out.println(state.toString());
     }
 
-    // NEW CODE: parseTankStates method to handle incoming tank states from the
-    // server
+    // NEW CODE: parseTankStates method to handle incoming tank states
     private void parseTankStates(String data) {
-        // Format "playerName:x,y,z,angle;playerName2:..."
         String[] segments = data.split(";");
         Map<String, TankState> updated = new HashMap<>();
         for (String seg : segments) {
             if (!seg.trim().isEmpty()) {
                 String[] parts = seg.split(":");
-                updated.put(parts[0], TankState.fromString(parts[1]));
+                TankState state = TankState.fromString(parts[1]);
+                if (parts[0].equals(playerName)) {
+                    state.setColor("red"); // Client tank is red
+                } else {
+                    state.setColor("blue"); // Remote tanks are blue
+                }
+                updated.put(parts[0], state);
             }
         }
         otherTanks = updated;

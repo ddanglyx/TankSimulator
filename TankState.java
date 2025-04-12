@@ -5,6 +5,8 @@ import java.util.Map;
 
 public class TankState {
     private float x, y, z, angle;
+    private String color;
+
 
     public TankState(float x, float y, float z, float angle) {
         this.x = x;
@@ -17,6 +19,8 @@ public class TankState {
     public float getY() { return y; }
     public float getZ() { return z; }
     public float getAngle() { return angle; }
+    public String getColor() { return color; }
+    public void setColor(String color) { this.color = color; }
 
     public static TankState fromString(String stateString) {
         String[] parts = stateString.split(",");
