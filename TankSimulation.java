@@ -59,8 +59,11 @@ public class TankSimulation {
     }
 
     public static void main(String[] args) {
-
-        //Play music on loop
+        String playerName = "Player1"; // Replace with actual player name input
+        Terrain terrain = new Terrain("terrain.obj"); // Ensure this is initialized
+        GameClient client = new GameClient(playerName, terrain, null); // Pass null for simulation initially
+        TankSimulation simulation = new TankSimulation(playerName, true, client);
+        simulation.run();        //Play music on loop
         try {
             File audioFile = new File("music.wav");
             AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
@@ -70,9 +73,6 @@ public class TankSimulation {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        new TankSimulation().run();
-
     }
 
     public void run() {
