@@ -7,6 +7,7 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.stb.STBImage;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.IntBuffer;
@@ -24,6 +25,8 @@ import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
 import java.util.LinkedList;
+
+import javax.sound.sampled.*;
 import java.util.Map;
 
 public class TankSimulation {
@@ -56,8 +59,20 @@ public class TankSimulation {
     }
 
     public static void main(String[] args) {
-        // called from GameClient
-        System.out.println("Please run GameClient to start the game.");
+
+        //Play music on loop
+        try {
+            File audioFile = new File("music.wav");
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioStream);
+            clip.loop(Clip.LOOP_CONTINUOUSLY); // This makes it loop forever
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        new TankSimulation().run();
+
     }
 
     public void run() {
