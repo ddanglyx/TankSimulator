@@ -4,10 +4,12 @@
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.stb.STBImage;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
@@ -18,6 +20,7 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
 import java.nio.FloatBuffer;
+import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
 import java.util.LinkedList;
@@ -28,6 +31,7 @@ public class TankSimulation {
     private int width = 800;
     private int height = 600;
     private List<Tank> tanks = new LinkedList<>();
+    private List<Bullet> bullets = new ArrayList<>();
     private int currentTankIndex = 0;
     private Terrain terrain;
     private GameClient client;
@@ -62,14 +66,11 @@ public class TankSimulation {
     }
 
     // NEW CODE: cleanup method to close the client connection and GLFW window
-    private void cleanup()
-    {
-        if (client != null)
-        {
+    private void cleanup() {
+        if (client != null){
             client.stop(); // close the client connection
         }
-        if (window != 0)
-        {
+        if (window != 0) {
             GLFW.glfwDestroyWindow(window);
             GLFW.glfwTerminate();
         }
@@ -247,6 +248,17 @@ public class TankSimulation {
         // Update local tank movement
         updateTankMovement();
 
+        for (int i = 0; i < bullets.size(); i++) {
+            Bullet bullet = bullets.get(i);
+            bullet.update();
+        
+            // Remove bullets that go out of bounds
+            if (bullet.getY() < 0 || bullet.getX() > 100 || bullet.getZ() > 100) {
+                bullets.remove(i);
+                i--;
+            }
+        }
+
         // Only update and send state for local tank
         if (localTank != null) {
             localTank.update();
@@ -293,6 +305,10 @@ public class TankSimulation {
             if (localTank != null) {
                 updateCamera(localTank);
             }
+        }
+
+        for (Bullet bullet : bullets) {
+            bullet.render();
         }
 
         // Render terrain and tanks
@@ -457,14 +473,6 @@ public class TankSimulation {
         return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     }
 
-    // private void handleTankSwitching() {
-    //     if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_1) == GLFW.GLFW_PRESS) {
-    //         currentTankIndex = 0; // Switch to Tank 1
-    //     } else if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_2) == GLFW.GLFW_PRESS) {
-    //         currentTankIndex = 1; // Switch to Tank 2
-    //     }
-    // }
-
     // NEW CODE: updateTankMovement method to handle local tank movement
     private void updateTankMovement() {
         int localIndex = client.getPlayerNumber() - 1;
@@ -475,32 +483,41 @@ public class TankSimulation {
                           " (Player " + client.getPlayerNumber() + ")" +
                           " at position: " + localTank.getX() + "," + localTank.getZ());
 
-// Only control local tank
+        // Only control local tank
         if (localTank != null) {
             // Tank body movement
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) {
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS) {
                 localTank.accelerate();
             }
-           
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) {
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS) {
                 localTank.decelerate();
             }
-           
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) {
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS) {
                 localTank.turnLeft();
             }
-           
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS) {
                 localTank.turnRight();
             }
+
             // Turret rotation control
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS) {
-            localTank.rotateTurretLeft(); // Rotate turret to the left
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS) {
+                localTank.rotateTurretLeft(); // Rotate turret to the left
+            }
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS) {
+                localTank.rotateTurretRight(); // Rotate turret to the right
+            }
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_S) == GLFW.GLFW_PRESS) {
+                localTank.rotateTurretUp(); // Rotate turret downward
+            }
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_W) == GLFW.GLFW_PRESS) {
+                localTank.rotateTurretDown(); // Rotate turret upward
+            }
+
+            // Fire bullet
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) {
+                localTank.fireBullet(terrain, bullets); // Fire a bullet
+            }
         }
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS) {
-            localTank.rotateTurretRight(); // Rotate turret to the right
-        }
-    }
     }
 }
 
@@ -563,6 +580,8 @@ class Tank {
     // Tank body dimensions
     private float tankBodyHeight = 0.5f; // The height of the tank body
     private float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
+    int numWheelsPerSide = 8;
+    float tankLength = 3.5f; // Length of the tank body
 
     private float barrelElevation = 0.0f; // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f; // Speed of barrel movement
@@ -577,13 +596,24 @@ class Tank {
         turretAngle -= turretRotationSpeed; // Adjust this according to how much you want to rotate
     }
 
-    // Methods to move the barrel up and down
-    public void raiseBarrel() {
+    public void rotateTurretUp() {
+        // Increase barrelElevation to angle the barrel upward
         barrelElevation = Math.min(barrelElevation + barrelElevationSpeed, MAX_ELEVATION);
     }
-
-    public void lowerBarrel() {
+    
+    public void rotateTurretDown() {
+        // Decrease barrelElevation to angle the barrel downward
         barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
+    }
+
+    public float getBarrelElevation() {
+        return barrelElevation;
+    }
+
+    public void fireBullet(Terrain terrain, List<Bullet> bullets) {
+        Bullet bullet = new Bullet(this, terrain);
+        bullets.add(bullet);
+        System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
     }
 
     public Tank(float x, float y, float z, float r, float g, float b) {
@@ -661,6 +691,16 @@ class Tank {
         return barrelLength;
     }
 
+    // added by Ethan
+    public float getTankLength() {
+        return tankLength;
+    }
+
+    // added by Ethan
+    public int getNumWheelsPerSide() {
+        return numWheelsPerSide;
+    }
+
     public void accelerate() {
         if (speed < maxSpeed) {
             speed += acceleration;
@@ -701,8 +741,6 @@ class Tank {
 
     public void render(Terrain terrain) {
         // Number of wheels per side
-        int numWheelsPerSide = 8;
-        float tankLength = 3.5f; // Length of the tank body
         float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
 
         // Calculate the heights of all wheels
@@ -980,8 +1018,6 @@ class Tank {
 
         // Define the wheel height offset
         float wheelHeightOffset = 0.8f; // Lower the wheels by this amount relative to the tank body
-        float tankLength = 3.5f; // Length of the tank body
-        int numWheelsPerSide = 8; // Number of wheels per side
         float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
 
         // Render wheels on the left side
@@ -1246,7 +1282,7 @@ class Terrain {
         float weight1 = area1 / areaTotal;
         float weight2 = area2 / areaTotal;
         float weight3 = area3 / areaTotal;
-
+ 
         // Interpolate the height using the weights
         return weight1 * v1Y + weight2 * v2Y + weight3 * v3Y;
     }
@@ -1258,6 +1294,7 @@ class Terrain {
 
 class Bullet {
     private static final float SPEED = 0.1f; // Speed of the bullet
+    private static final int bulletTextureId = loadImage("bullet.png");
 
     private float x, y, z; // Bullet's position
     private float r, g, b; // Bullet's color
@@ -1274,51 +1311,38 @@ class Bullet {
         float tankY = tank.getY();
         float tankZ = tank.getZ();
 
-        // Get the heights of each wheel
-        float frontLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.9f, tankZ + 1.5f);
-        float frontRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ + 1.5f);
-        float midFrontLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.45f, tankZ + 0.75f);
-        float midFrontRightWheelY = terrain.getTerrianHeightAt(tankX + 0.45f, tankZ + 0.75f);
-        float midRearLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.45f, tankZ - 0.75f);
-        float midRearRightWheelY = terrain.getTerrianHeightAt(tankX + 0.45f, tankZ - 0.75f);
-        float rearLeftWheelY = terrain.getTerrianHeightAt(tankX - 0.9f, tankZ - 1.5f);
-        float rearRightWheelY = terrain.getTerrianHeightAt(tankX + 0.9f, tankZ - 1.5f);
+        // Get the tank's angles
+        float turretAngleInRads = (float) Math.toRadians(tank.getCombinedTurretAngle());
+        float barrelElevationInRads = (float) Math.toRadians(tank.getBarrelElevation());
 
-        // Calculate the average height of the tank body (based on wheel heights)
-        float averageHeight = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY
-                + midRearLeftWheelY + midRearRightWheelY + rearLeftWheelY + rearRightWheelY) / 8.0f;
+        // Calculate the direction vector for the bullet
+        float[] forwardVector = { 0, 0, 1 }; // Forward direction
+        float[] rotatedVector = rotateY(forwardVector, turretAngleInRads); // Rotate by turret angle
+        rotatedVector = rotateX(rotatedVector, -barrelElevationInRads); // Rotate by barrel elevation
+        rotatedVector = normalize(rotatedVector); // Normalize to get a unit vector
 
-        // Calculate pitch (forward/backward tilt) Soand roll (side tilt) of tank, which are also used to determine the bullet's speed in each direction
-        float pitch = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f
-                - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
-        float roll = (frontLeftWheelY + frontRightWheelY + midFrontLeftWheelY + midFrontRightWheelY) / 4.0f
-                - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
+        // Set the bullet's direction
+        this.directionX = rotatedVector[0];
+        this.directionY = rotatedVector[1];
+        this.directionZ = rotatedVector[2];
 
-        float[] forwardPointingVector = { 0, 0, 1 };
+        // Calculate the barrel's tip position
+        float barrelLength = tank.getBarrelLength();
+        float turretYOffset = tank.getTurretYOffset();
+        float tankBodyYOffset = tank.getTankBodyYOffset();
+        float averageHeight = getAverageHeight(tank, terrain);
+        float tankBodyHeight = tank.getTankBodyHeight();
+        float yOffset = averageHeight + tankBodyHeight + turretYOffset + tankBodyYOffset + 0.2f; // Additional height offset for the bullet
+        float[] barrelTipOffset = {0, yOffset, barrelLength};
 
-        float pitchTimesTenInRads = (float) Math.toRadians(pitch * 10.0f); // Convert pitch to radians for usage below
-        float rollTimesTenInRads = (float) Math.toRadians(roll * 10.0f); // Convert roll to radians for usage below
-        float turretAngleInRads = (float) Math.toRadians(tank.getCombinedTurretAngle()); // Convert angle to radians for usage below
+        // Rotate the barrel tip offset based on turret and barrel angles
+        float[] rotatedBarrelTipOffset = rotateY(barrelTipOffset, turretAngleInRads);
+        rotatedBarrelTipOffset = rotateX(rotatedBarrelTipOffset, barrelElevationInRads);
 
-        float[] rotatedVector = rotateY(forwardPointingVector, turretAngleInRads); // Rotate the vector by the turret
-                                                                                   // angle
-        rotatedVector = rotateX(rotatedVector, pitchTimesTenInRads); // Rotate the vector by the pitch angle
-        rotatedVector = rotateZ(rotatedVector, rollTimesTenInRads); // Rotate the vector by the roll angle
-
-        rotatedVector = normalize(rotatedVector); // Normalize the vector so that it's length is 1, effectively making it a direction vector
-        directionX = rotatedVector[0]; // Assign the x component of the direction vector to the bullet's directionX
-        directionY = rotatedVector[1]; // Assign the y component of the direction vector to the bullet's directionY
-        directionZ = rotatedVector[2]; // Assign the z component of the direction vector to the bullet's directionZ
-
-        float[] initialOffsetFromTank = { 0, averageHeight + tank.getTankBodyYOffset(),
-                tank.getTurretLength() + tank.getBarrelLength() }; // The offset from the tank to the end of the barrel (where the bullet spawns)
-        float[] rotatedOffset = rotateY(initialOffsetFromTank, turretAngleInRads); // Rotate the offset by the turret angle
-        rotatedOffset = rotateX(rotatedOffset, pitchTimesTenInRads); // Rotate the offset by the pitch angle
-        rotatedOffset = rotateZ(rotatedOffset, rollTimesTenInRads); // Rotate the offset by the roll angle
-
-        this.x = tankX + rotatedOffset[0]; // Assign the x component of the offset to the bullet's x position
-        this.y = tankY + rotatedOffset[1]; // Assign the y component of the offset to the bullet's y position
-        this.z = tankZ + rotatedOffset[2]; // Assign the z component of the offset to the bullet's z position
+        // Set the bullet's initial position to the barrel's tip
+        this.x = tankX + rotatedBarrelTipOffset[0];
+        this.y = tankY + rotatedBarrelTipOffset[1];
+        this.z = tankZ + rotatedBarrelTipOffset[2];
     }
 
     // See if this works?
@@ -1328,17 +1352,48 @@ class Bullet {
         z += directionZ * SPEED;
     }
 
+    // renders bullet as 2d image
     public void render() {
         GL11.glPushMatrix();
         GL11.glTranslatef(x, y, z);
-        GL11.glColor3f(1.0f, 0.0f, 0.0f); // Red color for the bullet
+        GL11.glColor3f(r, g, b); // color for the bullet
+
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, bulletTextureId);
+
         GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex3f(-0.1f, -0.1f, -0.1f);
-        GL11.glVertex3f(0.1f, -0.1f, -0.1f);
-        GL11.glVertex3f(0.1f, 0.1f, -0.1f);
-        GL11.glVertex3f(-0.1f, 0.1f, -0.1f);
+
+        GL11.glTexCoord2f(0.0f, 0.0f);
+        GL11.glVertex3f(-0.1f, -0.1f, 0.0f);
+
+        GL11.glTexCoord2f(1.0f, 0.0f);
+        GL11.glVertex3f(0.1f, -0.1f, 0.0f);
+
+        GL11.glTexCoord2f(1.0f, 1.0f);
+        GL11.glVertex3f(0.1f, 0.1f, 0.0f);
+
+        GL11.glTexCoord2f(0.0f, 1.0f);
+        GL11.glVertex3f(-0.1f, 0.1f, 0.0f);
+
         GL11.glEnd();
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_LIGHTING);
         GL11.glPopMatrix();
+    }
+
+    // Getter methods for position
+    public float getX() {
+        return x;
+    }
+
+    public float getY() {
+        return y;
+    }
+
+    public float getZ() {
+        return z;
     }
 
     // rotates a vector around the X-axis by a given angle
@@ -1374,7 +1429,82 @@ class Bullet {
         };
     }
 
-    // normalizes a vector to have a magnitude of 1
+    // added by Ethan; loads an image from path as a texture id
+    private static int loadImage(String imagePath) {
+        STBImage.stbi_set_flip_vertically_on_load(true);
+
+        IntBuffer width = BufferUtils.createIntBuffer(1);
+        IntBuffer height = BufferUtils.createIntBuffer(1);
+        IntBuffer channels = BufferUtils.createIntBuffer(1);
+
+        // loads a new RGBA image
+        ByteBuffer image = STBImage.stbi_load(
+                imagePath,
+                width,
+                height,
+                channels,
+                4
+        );
+
+        // raise exception if the image is null
+        assert image != null;
+
+        // gets a unique texture id for the image we're about to create
+        int textureID = GL11.glGenTextures();
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureID); // assigns new texture id to the image we're going to make
+
+        // smooth linear scaling for when image is too small/big for the thing we're drawing on
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+
+        // this
+        GL11.glTexImage2D(
+                GL11.GL_TEXTURE_2D,
+                0,
+                GL11.GL_RGBA,
+                width.get(0),
+                height.get(0),
+                0,
+                GL11.GL_RGBA,
+                GL11.GL_UNSIGNED_BYTE,
+                image
+        );
+
+        // freeing this memory that supposedly isn't garbage collected
+        STBImage.stbi_image_free(image);
+
+        return textureID;
+    }
+
+    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
+    // but there some of the values besides average height are still needed. This only returns averageHeight.
+    public float getAverageHeight(Tank tank, Terrain terrain) {
+        int numWheelsPerSide = tank.getNumWheelsPerSide();
+        float tankLength = tank.getTankLength();
+
+        // Number of wheels per side
+        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
+
+        // Calculate the heights of all wheels
+        float[] leftWheelHeights = new float[numWheelsPerSide];
+        float[] rightWheelHeights = new float[numWheelsPerSide];
+
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
+            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
+            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
+        }
+
+        // Calculate the average height of the tank body (based on wheel heights)
+        float totalHeight = 0.0f;
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
+        }
+
+        return totalHeight / (numWheelsPerSide * 2);
+    }
+
+    // normalizes a vector to have a magnitude of 1.
     public float[] normalize(float[] vector) {
         float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
         return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
