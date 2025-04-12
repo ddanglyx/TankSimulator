@@ -7,6 +7,8 @@ import java.net.*;
 import java.util.*;
 
 public class GameClient {
+    private Terrain terrain;
+    private TankSimulation simulation;
     private String playerName;
     private int playerNumber;
     private boolean gameStarted = false;
@@ -15,7 +17,7 @@ public class GameClient {
     private PrintWriter out;
     private Map<String, TankState> otherTanks = new HashMap<>();
 
-    private GameClient(String playerName) {
+    private GameClient(String playerName, Terrain terrain, TankSimulation simulation) {
         this.playerName = playerName;
         try {
             socket = new Socket("localhost", 12344);
@@ -56,7 +58,12 @@ public class GameClient {
                             try {
                                 String updateLine;
                                 while ((updateLine = in.readLine()) != null) {
-                                    if (updateLine.contains(":")) {
+                                    if (updateLine.startsWith("BULLET:")) {
+                                        String bulletData = updateLine.substring(7);
+                                        Tank tank = simulation.getTank(); // Ensure this method exists to retrieve the current tank
+                                        Bullet bullet = Bullet.deserialize(bulletData, terrain, tank);
+                                        simulation.addBullet(bullet);
+                                    } else if (updateLine.contains(":")) {
                                         parseTankStates(updateLine);
                                     }
                                 }
@@ -76,8 +83,8 @@ public class GameClient {
         }
     }
 
-    public static GameClient initializeClient(String playerName) {
-        return new GameClient(playerName);
+    public static GameClient initializeClient(String playerName, Terrain terrain, TankSimulation simulation) {
+        return new GameClient(playerName, terrain, simulation);
     }
 
     public boolean isGameStarted() {
@@ -90,6 +97,10 @@ public class GameClient {
 
     public void sendTankState(TankState state) {
         out.println(state.toString());
+    }
+
+    public void sendBulletData(String bulletData) {
+        out.println("BULLET:" + bulletData);
     }
 
     private void parseTankStates(String data) {
@@ -121,9 +132,7 @@ public class GameClient {
         java.util.Scanner scanner = new java.util.Scanner(System.in);
         System.out.print("Enter your name: ");
         String name = scanner.nextLine();
-        GameClient client = GameClient.initializeClient(name);
-
-        System.out.println("Waiting for other player to connect...");
+        GameClient client = GameClient.initializeClient(name, new Terrain("terrain.obj"), new TankSimulation(name, false, null));        System.out.println("Waiting for other player to connect...");
         while (!client.isGameStarted()) {
             try {
                 Thread.sleep(100);

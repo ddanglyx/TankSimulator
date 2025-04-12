@@ -32,6 +32,7 @@ public class TankSimulation {
     private int currentTankIndex = 0;
     private Terrain terrain;
     private GameClient client;
+    private Tank playerTank; // Add this field if it doesn't already exist
     private String playerName;
     private boolean autoStart;
 
@@ -41,6 +42,14 @@ public class TankSimulation {
         this.playerName = playerName;
         this.autoStart = autoStart;
         this.client = client;
+    }
+
+    public void addBullet(Bullet bullet) {
+        bullets.add(bullet); // Add the bullet to the list
+    }
+
+    public Tank getTank() {
+        return playerTank; // Assuming `playerTank` is the tank controlled by the player
     }
 
     public static void main(String[] args) {
@@ -293,9 +302,11 @@ public class TankSimulation {
 
     // NEW CODE: syncFromState method in Tank class to update tank position from network state
     private void render() {
+        // Clear the screen and reset transformations
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glLoadIdentity();
-
+    
+        // Update the camera based on the player's tank
         int localIndex = client.getPlayerNumber() - 1;
         if (localIndex >= 0 && localIndex < tanks.size()) {
             Tank localTank = tanks.get(localIndex);
@@ -303,20 +314,27 @@ public class TankSimulation {
                 updateCamera(localTank);
             }
         }
-
+    
+        // Render bullets
         for (Bullet bullet : bullets) {
             bullet.render();
         }
-
-        // Render terrain and tanks
+    
+        // Render the terrain
         if (terrain != null) {
             terrain.render();
         }
-
-        for (Tank tank : tanks) {
-            if (tank != null) {
-                tank.render(terrain);
-            }
+    
+        // Render the player's tank
+        Tank myTank = getTank();
+        if (myTank != null) {
+            myTank.render(terrain);
+        }
+    
+        // Render other players' tanks
+        for (TankState state : client.getOtherTanks().values()) {
+            Tank otherTank = Tank.fromState(state, terrain); // Create a tank object from its state
+            otherTank.render(terrain);
         }
     }
 
@@ -512,7 +530,7 @@ public class TankSimulation {
 
             // Fire bullet
             if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) {
-                localTank.fireBullet(terrain, bullets); // Fire a bullet
+                localTank.fireBullet(terrain, bullets, client); // Fire a bullet
             }
         }
     }
@@ -609,12 +627,15 @@ class Tank {
         return barrelElevation;
     }
 
-    public void fireBullet(Terrain terrain, List<Bullet> bullets) {
+    public void fireBullet(Terrain terrain, List<Bullet> bullets, GameClient client) {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastBulletFiredTime >= FIRE_COOLDOWN) {
             Bullet bullet = new Bullet(this, terrain);
             bullets.add(bullet);
-            lastBulletFiredTime = currentTime; // Update the last fired time
+            lastBulletFiredTime = currentTime;
+
+            // Send bullet data to the server
+            client.sendBulletData(bullet.serialize());
             System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
         } else {
             System.out.println("Cannot fire yet. Cooldown in progress.");
@@ -1074,6 +1095,17 @@ class Tank {
         }
     }
 
+    public static Tank fromState(TankState state, Terrain terrain) {
+        // Create a new Tank object using the state data
+        Tank tank = new Tank(state.getX(), state.getY(), state.getZ(), 0.0f, 0.0f, 1.0f);
+        tank.setTargetX(state.getX());
+        tank.setTargetY(state.getY());
+        tank.setTargetZ(state.getZ());
+        tank.setTargetAngle(state.getAngle());
+        tank.setRemote(true); // Mark this tank as remote
+        return tank;
+    }
+
     public void syncFromState(TankState state) {
         // Directly update position without interpolation for remote tank
         this.x = state.getX();
@@ -1297,6 +1329,30 @@ class Terrain {
 }
 
 class Bullet {
+    public String serialize() {
+        return x + "," + y + "," + z + "," + directionX + "," + directionY + "," + directionZ;
+    }
+    
+    public static Bullet deserialize(String data, Terrain terrain, Tank tank) {
+        String[] parts = data.split(",");
+        float x = Float.parseFloat(parts[0]);
+        float y = Float.parseFloat(parts[1]);
+        float z = Float.parseFloat(parts[2]);
+        float directionX = Float.parseFloat(parts[3]);
+        float directionY = Float.parseFloat(parts[4]);
+        float directionZ = Float.parseFloat(parts[5]);
+    
+        // Create a new Bullet using the provided Tank and Terrain
+        Bullet bullet = new Bullet(tank, terrain);
+        bullet.x = x;
+        bullet.y = y;
+        bullet.z = z;
+        bullet.directionX = directionX;
+        bullet.directionY = directionY;
+        bullet.directionZ = directionZ;
+        return bullet;
+    }
+    
     private static final float SPEED = 0.1f; // Speed of the bullet
 
     private float x, y, z; // Bullet's position

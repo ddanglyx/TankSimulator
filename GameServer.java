@@ -59,6 +59,12 @@ public class GameServer {
         }
     }
 
+    public synchronized void broadcastBullet(String bulletData) {
+        for (ClientHandler client : clients) {
+            client.send("BULLET:" + bulletData);
+        }
+    }
+
     // NEW CODE: Method to update tank state and broadcast it to all clients
     public synchronized void updateTankState(String playerName, TankState state) {
         tankStates.put(playerName, state);
@@ -78,6 +84,7 @@ public class GameServer {
         private PrintWriter out;
         private GameServer server;
         private String playerName;
+        
 
         public ClientHandler(Socket socket, GameServer server) throws IOException {
             this.socket = socket;
@@ -101,7 +108,10 @@ public class GameServer {
                 // Handle tank state updates
                 String input;
                 while ((input = in.readLine()) != null) {
-                    if (!input.equals("START")) { // Ignore START messages in state updates
+                    if (input.startsWith("BULLET:")) {
+                        String bulletData = input.substring(7);
+                        server.broadcastBullet(bulletData);
+                    } else if (!input.equals("START")) { // Ignore START messages in state updates
                         TankState state = TankState.fromString(input);
                         server.updateTankState(playerName, state);
                     }
