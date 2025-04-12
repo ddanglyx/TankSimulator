@@ -5,8 +5,8 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-public class    GameServer {
-    private static final int PORT = 12344;
+public class GameServer {
+    private static final int PORT = 12345;
     private static final int MAX_PLAYERS = 2;
     private List<ClientHandler> clients = new ArrayList<>();
     // NEW CODE: Added a map to store tank states for each player
@@ -19,8 +19,11 @@ public class    GameServer {
     }
 
     public void start() {
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-            System.out.println("Server started. Waiting for 2 players...");
+        // RUN OVER A NETWORK
+        try (ServerSocket serverSocket = new ServerSocket(PORT, 0, InetAddress.getByName("0.0.0.0"))) {
+            System.out.println("Server started on all interfaces. IP: " +
+                InetAddress.getLocalHost().getHostAddress() +
+                " Port: " + PORT);
 
             while (clients.size() < MAX_PLAYERS) {
                 Socket clientSocket = serverSocket.accept();
