@@ -1327,7 +1327,6 @@ class Bullet {
         float tankBodyHeight = tank.getTankBodyHeight();
         float tankBodyYOffset = tank.getTankBodyYOffset();
         float averageHeight = getAverageHeight(tank, terrain);
-        float tankBodyHeight = tank.getTankBodyHeight();
         float yOffset = averageHeight + tankBodyHeight + turretYOffset + tankBodyYOffset + 0.2f; // Additional height offset for the bullet
         float[] barrelTipOffset = {0, yOffset, barrelLength};
 
