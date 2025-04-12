@@ -4,10 +4,12 @@
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.stb.STBImage;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
@@ -18,6 +20,7 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
 import java.nio.FloatBuffer;
+import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
 import java.util.LinkedList;
@@ -1354,6 +1357,7 @@ class Bullet {
     }
     
     private static final float SPEED = 0.1f; // Speed of the bullet
+    private static final int bulletTextureId = loadImage("bullet.png");
 
     private float x, y, z; // Bullet's position
     private float r, g, b; // Bullet's color
@@ -1411,16 +1415,26 @@ class Bullet {
         z += directionZ * SPEED;
     }
 
+    // renders bullet as 2d image
     public void render() {
         GL11.glPushMatrix();
         GL11.glTranslatef(x, y, z);
-        GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray color for the bullet
+        GL11.glColor3f(r, g, b); // color for the bullet
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, bulletTextureId);
         GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex3f(-0.1f, -0.1f, -0.1f);
-        GL11.glVertex3f(0.1f, -0.1f, -0.1f);
-        GL11.glVertex3f(0.1f, 0.1f, -0.1f);
-        GL11.glVertex3f(-0.1f, 0.1f, -0.1f);
+        GL11.glTexCoord2f(0.0f, 0.0f);
+        GL11.glVertex3f(-0.1f, -0.1f, 0.0f);
+        GL11.glTexCoord2f(1.0f, 0.0f);
+        GL11.glVertex3f(0.1f, -0.1f, 0.0f);
+        GL11.glTexCoord2f(1.0f, 1.0f);
+        GL11.glVertex3f(0.1f, 0.1f, 0.0f);
+        GL11.glTexCoord2f(0.0f, 1.0f);
+        GL11.glVertex3f(-0.1f, 0.1f, 0.0f);
         GL11.glEnd();
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_LIGHTING);
         GL11.glPopMatrix();
     }
 
@@ -1470,8 +1484,53 @@ class Bullet {
         };
     }
 
-    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
-    // but there some of the values besides average height are still needed. This only returns averageHeight.
+    // added by Ethan; loads an image from path as a texture id
+    private static int loadImage(String imagePath) {
+        STBImage.stbi_set_flip_vertically_on_load(true);
+
+        IntBuffer width = BufferUtils.createIntBuffer(1);
+        IntBuffer height = BufferUtils.createIntBuffer(1);
+        IntBuffer channels = BufferUtils.createIntBuffer(1);
+
+        // loads a new RGBA image
+        ByteBuffer image = STBImage.stbi_load(
+                imagePath,
+                width,
+                height,
+                channels,
+                4
+        );
+
+        // raise exception if the image is null
+        assert image != null;
+
+        // gets a unique texture id for the image we're about to create
+        int textureID = GL11.glGenTextures();
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureID); // assigns new texture id to the image we're going to make
+
+        // smooth linear scaling for when image is too small/big for the thing we're drawing on
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+
+        // this
+        GL11.glTexImage2D(
+                GL11.GL_TEXTURE_2D,
+                0,
+                GL11.GL_RGBA,
+                width.get(0),
+                height.get(0),
+                0,
+                GL11.GL_RGBA,
+                GL11.GL_UNSIGNED_BYTE,
+                image
+        );
+
+        // freeing this memory that supposedly isn't garbage collected
+        STBImage.stbi_image_free(image);
+
+        return textureID;
+    }
+
     public float getAverageHeight(Tank tank, Terrain terrain) {
         int numWheelsPerSide = tank.getNumWheelsPerSide();
         float tankLength = tank.getTankLength();
@@ -1498,7 +1557,7 @@ class Bullet {
         return totalHeight / (numWheelsPerSide * 2);
     }
 
-    // normalizes a vector to have a magnitude of 1
+    // normalizes a vector to have a magnitude of 1.
     public float[] normalize(float[] vector) {
         float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
         return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
