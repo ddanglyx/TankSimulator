@@ -7,6 +7,7 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.stb.STBImage;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.IntBuffer;
@@ -24,6 +25,8 @@ import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
 import java.util.LinkedList;
+
+import javax.sound.sampled.*;
 import java.util.Map;
 
 public class TankSimulation {
@@ -35,6 +38,7 @@ public class TankSimulation {
     private int currentTankIndex = 0;
     private Terrain terrain;
     private GameClient client;
+    private Tank playerTank; // Add this field if it doesn't already exist
     private String playerName;
     private boolean autoStart;
 
@@ -46,9 +50,29 @@ public class TankSimulation {
         this.client = client;
     }
 
+    public void addBullet(Bullet bullet) {
+        bullets.add(bullet); // Add the bullet to the list
+    }
+
+    public Tank getTank() {
+        return playerTank; // Assuming `playerTank` is the tank controlled by the player
+    }
+
     public static void main(String[] args) {
-        // called from GameClient
-        System.out.println("Please run GameClient to start the game.");
+        String playerName = "Player1"; // Replace with actual player name input
+        Terrain terrain = new Terrain("terrain.obj"); // Ensure this is initialized
+        GameClient client = new GameClient(playerName, terrain, null); // Pass null for simulation initially
+        TankSimulation simulation = new TankSimulation(playerName, true, client);
+        simulation.run();        //Play music on loop
+        try {
+            File audioFile = new File("music.wav");
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioStream);
+            clip.loop(Clip.LOOP_CONTINUOUSLY); // This makes it loop forever
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public void run() {
@@ -296,9 +320,11 @@ public class TankSimulation {
 
     // NEW CODE: syncFromState method in Tank class to update tank position from network state
     private void render() {
+        // Clear the screen and reset transformations
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glLoadIdentity();
-
+    
+        // Update the camera based on the player's tank
         int localIndex = client.getPlayerNumber() - 1;
         if (localIndex >= 0 && localIndex < tanks.size()) {
             Tank localTank = tanks.get(localIndex);
@@ -306,20 +332,27 @@ public class TankSimulation {
                 updateCamera(localTank);
             }
         }
-
+    
+        // Render bullets
         for (Bullet bullet : bullets) {
             bullet.render();
         }
-
-        // Render terrain and tanks
+    
+        // Render the terrain
         if (terrain != null) {
             terrain.render();
         }
-
-        for (Tank tank : tanks) {
-            if (tank != null) {
-                tank.render(terrain);
-            }
+    
+        // Render the player's tank
+        Tank myTank = getTank();
+        if (myTank != null) {
+            myTank.render(terrain);
+        }
+    
+        // Render other players' tanks
+        for (TankState state : client.getOtherTanks().values()) {
+            Tank otherTank = Tank.fromState(state, terrain); // Create a tank object from its state
+            otherTank.render(terrain);
         }
     }
 
@@ -515,7 +548,7 @@ public class TankSimulation {
 
             // Fire bullet
             if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) {
-                localTank.fireBullet(terrain, bullets); // Fire a bullet
+                localTank.fireBullet(terrain, bullets, client); // Fire a bullet
             }
         }
     }
@@ -526,6 +559,8 @@ class Tank {
     protected float x, y, z;  // Change from private to protected
     private float targetX, targetY, targetZ, targetAngle;
     private boolean isRemote = false;
+    private long lastBulletFiredTime = 0; // Time of the last bullet fired
+    private static final long FIRE_COOLDOWN = 1000; // Cooldown in milliseconds (1 second)
 
     public boolean isRemote() {
         return isRemote;
@@ -610,10 +645,19 @@ class Tank {
         return barrelElevation;
     }
 
-    public void fireBullet(Terrain terrain, List<Bullet> bullets) {
-        Bullet bullet = new Bullet(this, terrain);
-        bullets.add(bullet);
-        System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+    public void fireBullet(Terrain terrain, List<Bullet> bullets, GameClient client) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastBulletFiredTime >= FIRE_COOLDOWN) {
+            Bullet bullet = new Bullet(this, terrain);
+            bullets.add(bullet);
+            lastBulletFiredTime = currentTime;
+
+            // Send bullet data to the server
+            client.sendBulletData(bullet.serialize());
+            System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+        } else {
+            System.out.println("Cannot fire yet. Cooldown in progress.");
+        }
     }
 
     public Tank(float x, float y, float z, float r, float g, float b) {
@@ -800,8 +844,8 @@ class Tank {
     }
 
     private void renderTurret() {
-        // GL11.glColor3f(r, g, b); // Color of the turret (same as tank body)
-        GL11.glColor3f(0.8f, 0.8f, 0.2f); // Yellow for testing
+        GL11.glColor3f(r, g, b); // Color of the turret (same as tank body)
+        // GL11.glColor3f(0.8f, 0.8f, 0.2f); // Yellow for testing
         float turretLength = 1.0f;
         float turretWidth = 0.8f;
         float turretHeight = 0.4f;
@@ -1069,6 +1113,17 @@ class Tank {
         }
     }
 
+    public static Tank fromState(TankState state, Terrain terrain) {
+        // Create a new Tank object using the state data
+        Tank tank = new Tank(state.getX(), state.getY(), state.getZ(), 0.0f, 0.0f, 1.0f);
+        tank.setTargetX(state.getX());
+        tank.setTargetY(state.getY());
+        tank.setTargetZ(state.getZ());
+        tank.setTargetAngle(state.getAngle());
+        tank.setRemote(true); // Mark this tank as remote
+        return tank;
+    }
+
     public void syncFromState(TankState state) {
         // Directly update position without interpolation for remote tank
         this.x = state.getX();
@@ -1245,8 +1300,7 @@ class Terrain {
 
             // Check if the point (x, z) is inside the triangle
             if (isPointInTriangle(x, z, v1X, v1Z, v2X, v2Z, v3X, v3Z)) {
-                // If the point is in the triangle, calculate the height using barycentric
-                // interpolation
+                // If the point is in the triangle, calculate the height using barycentric interpolation
                 return interpolateHeight(x, z, v1X, v1Y, v1Z, v2X, v2Y, v2Z, v3X, v3Y, v3Z);
             }
         }
@@ -1293,6 +1347,30 @@ class Terrain {
 }
 
 class Bullet {
+    public String serialize() {
+        return x + "," + y + "," + z + "," + directionX + "," + directionY + "," + directionZ;
+    }
+    
+    public static Bullet deserialize(String data, Terrain terrain, Tank tank) {
+        String[] parts = data.split(",");
+        float x = Float.parseFloat(parts[0]);
+        float y = Float.parseFloat(parts[1]);
+        float z = Float.parseFloat(parts[2]);
+        float directionX = Float.parseFloat(parts[3]);
+        float directionY = Float.parseFloat(parts[4]);
+        float directionZ = Float.parseFloat(parts[5]);
+    
+        // Create a new Bullet using the provided Tank and Terrain
+        Bullet bullet = new Bullet(tank, terrain);
+        bullet.x = x;
+        bullet.y = y;
+        bullet.z = z;
+        bullet.directionX = directionX;
+        bullet.directionY = directionY;
+        bullet.directionZ = directionZ;
+        return bullet;
+    }
+    
     private static final float SPEED = 0.1f; // Speed of the bullet
     private static final int bulletTextureId = loadImage("bullet.png");
 
@@ -1329,9 +1407,9 @@ class Bullet {
         // Calculate the barrel's tip position
         float barrelLength = tank.getBarrelLength();
         float turretYOffset = tank.getTurretYOffset();
+        float tankBodyHeight = tank.getTankBodyHeight();
         float tankBodyYOffset = tank.getTankBodyYOffset();
         float averageHeight = getAverageHeight(tank, terrain);
-        float tankBodyHeight = tank.getTankBodyHeight();
         float yOffset = averageHeight + tankBodyHeight + turretYOffset + tankBodyYOffset + 0.2f; // Additional height offset for the bullet
         float[] barrelTipOffset = {0, yOffset, barrelLength};
 
@@ -1357,27 +1435,19 @@ class Bullet {
         GL11.glPushMatrix();
         GL11.glTranslatef(x, y, z);
         GL11.glColor3f(r, g, b); // color for the bullet
-
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, bulletTextureId);
-
         GL11.glBegin(GL11.GL_QUADS);
-
         GL11.glTexCoord2f(0.0f, 0.0f);
         GL11.glVertex3f(-0.1f, -0.1f, 0.0f);
-
         GL11.glTexCoord2f(1.0f, 0.0f);
         GL11.glVertex3f(0.1f, -0.1f, 0.0f);
-
         GL11.glTexCoord2f(1.0f, 1.0f);
         GL11.glVertex3f(0.1f, 0.1f, 0.0f);
-
         GL11.glTexCoord2f(0.0f, 1.0f);
         GL11.glVertex3f(-0.1f, 0.1f, 0.0f);
-
         GL11.glEnd();
-
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_LIGHTING);
         GL11.glPopMatrix();
@@ -1476,8 +1546,6 @@ class Bullet {
         return textureID;
     }
 
-    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
-    // but there some of the values besides average height are still needed. This only returns averageHeight.
     public float getAverageHeight(Tank tank, Terrain terrain) {
         int numWheelsPerSide = tank.getNumWheelsPerSide();
         float tankLength = tank.getTankLength();

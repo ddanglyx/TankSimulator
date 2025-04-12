@@ -5,7 +5,7 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-public class    GameServer {
+public class GameServer {
     private static final int PORT = 12344;
     private static final int MAX_PLAYERS = 2;
     private List<ClientHandler> clients = new ArrayList<>();
@@ -19,8 +19,11 @@ public class    GameServer {
     }
 
     public void start() {
+        // RUN OVER A NETWORK
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-            System.out.println("Server started. Waiting for 2 players...");
+            System.out.println("Server started on all interfaces. IP: " +
+                InetAddress.getLocalHost().getHostAddress() +
+                " Port: " + PORT);
 
             while (clients.size() < MAX_PLAYERS) {
                 Socket clientSocket = serverSocket.accept();
@@ -59,6 +62,12 @@ public class    GameServer {
         }
     }
 
+    public synchronized void broadcastBullet(String bulletData) {
+        for (ClientHandler client : clients) {
+            client.send("BULLET:" + bulletData);
+        }
+    }
+
     // NEW CODE: Method to update tank state and broadcast it to all clients
     public synchronized void updateTankState(String playerName, TankState state) {
         tankStates.put(playerName, state);
@@ -78,6 +87,7 @@ public class    GameServer {
         private PrintWriter out;
         private GameServer server;
         private String playerName;
+        
 
         public ClientHandler(Socket socket, GameServer server) throws IOException {
             this.socket = socket;
@@ -101,7 +111,10 @@ public class    GameServer {
                 // Handle tank state updates
                 String input;
                 while ((input = in.readLine()) != null) {
-                    if (!input.equals("START")) { // Ignore START messages in state updates
+                    if (input.startsWith("BULLET:")) {
+                        String bulletData = input.substring(7);
+                        server.broadcastBullet(bulletData);
+                    } else if (!input.equals("START")) { // Ignore START messages in state updates
                         TankState state = TankState.fromString(input);
                         server.updateTankState(playerName, state);
                     }
