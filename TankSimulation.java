@@ -523,6 +523,8 @@ class Tank {
     protected float x, y, z;  // Change from private to protected
     private float targetX, targetY, targetZ, targetAngle;
     private boolean isRemote = false;
+    private long lastBulletFiredTime = 0; // Time of the last bullet fired
+    private static final long FIRE_COOLDOWN = 1000; // Cooldown in milliseconds (1 second)
 
     public boolean isRemote() {
         return isRemote;
@@ -608,9 +610,15 @@ class Tank {
     }
 
     public void fireBullet(Terrain terrain, List<Bullet> bullets) {
-        Bullet bullet = new Bullet(this, terrain);
-        bullets.add(bullet);
-        System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastBulletFiredTime >= FIRE_COOLDOWN) {
+            Bullet bullet = new Bullet(this, terrain);
+            bullets.add(bullet);
+            lastBulletFiredTime = currentTime; // Update the last fired time
+            System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+        } else {
+            System.out.println("Cannot fire yet. Cooldown in progress.");
+        }
     }
 
     public Tank(float x, float y, float z, float r, float g, float b) {
@@ -797,8 +805,8 @@ class Tank {
     }
 
     private void renderTurret() {
-        // GL11.glColor3f(r, g, b); // Color of the turret (same as tank body)
-        GL11.glColor3f(0.8f, 0.8f, 0.2f); // Yellow for testing
+        GL11.glColor3f(r, g, b); // Color of the turret (same as tank body)
+        // GL11.glColor3f(0.8f, 0.8f, 0.2f); // Yellow for testing
         float turretLength = 1.0f;
         float turretWidth = 0.8f;
         float turretHeight = 0.4f;
@@ -1350,7 +1358,7 @@ class Bullet {
     public void render() {
         GL11.glPushMatrix();
         GL11.glTranslatef(x, y, z);
-        GL11.glColor3f(1.0f, 0.0f, 0.0f); // Red color for the bullet
+        GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray color for the bullet
         GL11.glBegin(GL11.GL_QUADS);
         GL11.glVertex3f(-0.1f, -0.1f, -0.1f);
         GL11.glVertex3f(0.1f, -0.1f, -0.1f);
