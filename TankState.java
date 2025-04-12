@@ -41,4 +41,15 @@ public class TankState {
     public String toString() {
         return x + "," + y + "," + z + "," + angle;
     }
+    // Main method for testing
+    public static void main(String[] args) {
+        // Create a TankState instance
+        TankState tank = new TankState(10.5f, 20.0f, 30.0f, 45.0f);
+        System.out.println("TankState: " + tank);
+
+        // Convert TankState to string and back
+        String serialized = tank.toString();
+        TankState deserialized = TankState.fromString(serialized);
+        System.out.println("Deserialized TankState: " + deserialized);
+    }
 }
