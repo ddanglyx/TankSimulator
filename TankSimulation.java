@@ -5,6 +5,7 @@ import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,6 +21,8 @@ import org.lwjgl.BufferUtils;
 
 import java.util.LinkedList;
 
+import javax.sound.sampled.*;
+
 public class TankSimulation {
     private long window;
     private int width = 800;
@@ -29,7 +32,20 @@ public class TankSimulation {
     private Terrain terrain;
 
     public static void main(String[] args) {
+
+        //Play music on loop
+        try {
+            File audioFile = new File("music.wav");
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioStream);
+            clip.loop(Clip.LOOP_CONTINUOUSLY); // This makes it loop forever
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         new TankSimulation().run();
+
     }
 
     public void run() {
