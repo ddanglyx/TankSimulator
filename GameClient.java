@@ -19,7 +19,8 @@ public class GameClient {
     private GameClient(String playerName) {
         this.playerName = playerName;
         try {
-            socket = new Socket("localhost", 12344);
+            // NEW CODE: replace with your IP and port
+            socket = new Socket("192.168.4.57", 12345);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
