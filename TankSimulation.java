@@ -40,16 +40,13 @@ public class TankSimulation {
     private boolean autoStart;
 
     // NEW CODE:
+
+    
     // New constructor accepting the player's name, autoStart flag, and GameClient
     public TankSimulation(String playerName, boolean autoStart, GameClient client) {
         this.playerName = playerName;
         this.autoStart = autoStart;
         this.client = client;
-    }
-
-    public static void main(String[] args) {
-        // called from GameClient
-        System.out.println("Please run GameClient to start the game.");
         //Play music on loop
         try {
             File audioFile = new File("music.wav");
@@ -537,6 +534,7 @@ class Tank {
     protected float x, y, z;  // Change from private to protected
     private float targetX, targetY, targetZ, targetAngle;
     private boolean isRemote = false;
+    private long lastBulletFiredTime = 0; // Track the last time a bullet was fired
 
     public boolean isRemote() {
         return isRemote;
@@ -620,9 +618,15 @@ class Tank {
     }
 
     public void fireBullet(Terrain terrain, List<Bullet> bullets) {
-        Bullet bullet = new Bullet(this, terrain);
-        bullets.add(bullet);
-        System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+        long currentTime = System.currentTimeMillis(); // Get the current time in milliseconds
+        if (currentTime - lastBulletFiredTime >= 1000) { // Check if at least 1 second has passed
+            Bullet bullet = new Bullet(this, terrain);
+            bullets.add(bullet);
+            lastBulletFiredTime = currentTime; // Update the last fired time
+            System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+        } else {
+            System.out.println("Cannot fire yet. Please wait.");
+        }
     }
 
     public Tank(float x, float y, float z, float r, float g, float b) {
