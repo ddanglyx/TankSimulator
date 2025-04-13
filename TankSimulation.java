@@ -540,6 +540,23 @@ class Tank {
     private boolean isRemote = false;
     private long lastBulletFiredTime = 0; // Track the last time a bullet was fired
     private static final int wheelTextureId = loadImage("wheel.png"); // Load the wheel texture
+    private static final File turretRotateSoundFile = new File("turretRotate.wav");
+
+    private void playTurretRotateSound() {
+        try {
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(turretRotateSoundFile);
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioStream);
+    
+            // Lower the volume if needed
+            FloatControl volumeControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            volumeControl.setValue(-10.0f); // Reduce volume by 10 decibels (adjust as needed)
+    
+            clip.start();
+        } catch (Exception e) {
+            System.err.println("Failed to play turret rotation sound: " + e.getMessage());
+        }
+    }
 
     private static int loadImage(String imagePath) {
         STBImage.stbi_set_flip_vertically_on_load(true);
@@ -624,20 +641,24 @@ class Tank {
 
     public void rotateTurretLeft() {
         turretAngle += turretRotationSpeed; // Adjust this according to how much you want to rotate
+        playTurretRotateSound(); // Play the sound
     }
 
     public void rotateTurretRight() {
         turretAngle -= turretRotationSpeed; // Adjust this according to how much you want to rotate
+        playTurretRotateSound(); // Play the sound
     }
 
     public void rotateTurretUp() {
         // Increase barrelElevation to angle the barrel upward
         barrelElevation = Math.min(barrelElevation + barrelElevationSpeed, MAX_ELEVATION);
+        playTurretRotateSound(); // Play the sound
     }
     
     public void rotateTurretDown() {
         // Decrease barrelElevation to angle the barrel downward
         barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
+        playTurretRotateSound(); // Play the sound
     }
 
     public float getBarrelElevation() {
