@@ -6,13 +6,17 @@ import java.net.*;
 import java.util.*;
 
 public class GameServer {
-    private static final int PORT = 12344;
+    private static final int PORT = 12346;
     private static final int MAX_PLAYERS = 2;
     private List<ClientHandler> clients = new ArrayList<>();
     // NEW CODE: Added a map to store tank states for each player
     private Map<String, TankState> tankStates = new HashMap<>();
     // NEW CODE: Added a counter to track the number of players connected
     private int playerCount = 0;
+
+    // Add bullet tracking
+    private Map<String, Long> lastBulletTimes = new HashMap<>();
+    private static final long BULLET_BROADCAST_COOLDOWN = 250; // 250ms cooldown to prevent spamming bullets, & desync
 
     public static void main(String[] args) {
         new GameServer().start();
@@ -73,6 +77,22 @@ public class GameServer {
         }
     }
 
+    // NEW CODE: Method to broadcast bullet data to all clients except the sender
+    public synchronized void broadcastBullet(String playerName, String bulletData) {
+        long currentTime = System.currentTimeMillis();
+        Long lastTime = lastBulletTimes.get(playerName);
+
+        if (lastTime == null || currentTime - lastTime > BULLET_BROADCAST_COOLDOWN) {
+            String message = "BULLET:" + bulletData;
+            for (ClientHandler client : clients) {
+                if (!client.playerName.equals(playerName)) {
+                    client.send(message);
+                }
+            }
+            lastBulletTimes.put(playerName, currentTime);
+        }
+    }
+
     class ClientHandler implements Runnable {
         private Socket socket;
         private PrintWriter out;
@@ -98,10 +118,14 @@ public class GameServer {
                 out.println(playerNumber);
                 out.flush();
 
-                // Handle tank state updates
+                // Handle tank state updates and bullet messages
                 String input;
                 while ((input = in.readLine()) != null) {
-                    if (!input.equals("START")) { // Ignore START messages in state updates
+                    if (input.startsWith("BULLET:")) {
+                        // Handle bullet message
+                        server.broadcastBullet(playerName, input.substring(7));
+                    } else if (!input.equals("START")) {
+                        // Handle tank state updates
                         TankState state = TankState.fromString(input);
                         server.updateTankState(playerName, state);
                     }

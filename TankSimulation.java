@@ -5,6 +5,7 @@ import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.stb.STBImage;
+import java.util.Iterator;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -13,6 +14,8 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
+import org.lwjgl.BufferUtils;
+import java.nio.FloatBuffer;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -31,8 +34,10 @@ import java.util.Map;
 
 public class TankSimulation {
     private long window;
-    private int width = 800;
-    private int height = 600;
+    private int width = 1280;
+    private int height = 720;
+    private static final int WIDTH = 1280;
+    private static final int HEIGHT = 720;
     private List<Tank> tanks = new LinkedList<>();
     private List<Bullet> bullets = new ArrayList<>();
     private int currentTankIndex = 0;
@@ -250,24 +255,33 @@ public class TankSimulation {
         }
     }
 
-    // NEW CODE: updateGameState method to handle tank movement and network state
+    // NEW CODE: updateGameState method to handle tank movement, bullet movement, and network state
     private void updateGameState() {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
         Tank remoteTank = tanks.get(localIndex == 0 ? 1 : 0);
 
-        // Update local tank movement
+        // update local tank movement
         updateTankMovement();
 
-        for (int i = 0; i < bullets.size(); i++) {
-            Bullet bullet = bullets.get(i);
+        // Update bullets
+        Iterator<Bullet> bulletIterator = bullets.iterator();
+        while (bulletIterator.hasNext()) {
+            Bullet bullet = bulletIterator.next();
             bullet.update();
-        
-            // Remove bullets that go out of bounds
+
+            // Remove bullets that are out of bounds
             if (bullet.getY() < 0 || bullet.getX() > 100 || bullet.getZ() > 100) {
-                bullets.remove(i);
-                i--;
+                bulletIterator.remove();
+                System.out.println("Bullet removed - out of bounds");
             }
+        }
+
+        // Add remote bullets
+        List<Bullet> newBullets = client.getRemoteBullets();
+        if (newBullets != null && !newBullets.isEmpty()) {
+            bullets.addAll(newBullets);
+            System.out.println("Added " + newBullets.size() + " remote bullets");
         }
 
         // Only update and send state for local tank
@@ -281,7 +295,8 @@ public class TankSimulation {
             );
             client.sendTankState(state);
 
-            System.out.println("Local tank state sent: " + state);
+            // debugging to verify state sent to server
+            // System.out.println("Local tank state sent: " + state);
         }
 
         // Update remote tank position from network state
@@ -318,7 +333,10 @@ public class TankSimulation {
             }
         }
 
+        // render
+        System.out.println("Rendering " + bullets.size() + " bullets");
         for (Bullet bullet : bullets) {
+            System.out.println("Bullet position: " + bullet.getX() + "," + bullet.getY() + "," + bullet.getZ());
             bullet.render();
         }
 
@@ -342,7 +360,7 @@ public class TankSimulation {
         GL11.glEnable(GL11.GL_LEQUAL);
 
         // Set the light position
-        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f }); 
+        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f });
         lightPosition.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
 
@@ -411,6 +429,7 @@ public class TankSimulation {
     private void updateCamera(Tank tank) {
         float cameraDistance = 10.0f; // Distance behinid the tank
         float cameraHeight = 5.0f; // Height above the tank
+        // float cameraPitch = -20.0f;
 
         // Calculate the desired camera position behind and above the tank
         float targetCameraX = tank.getX() - (float)(Math.sin(Math.toRadians(tank.getAngle())) * cameraDistance);
@@ -490,9 +509,9 @@ public class TankSimulation {
         Tank localTank = tanks.get(localIndex);
 
         // Debug print to verify which tank we're controlling
-        System.out.println("Controlling tank at index " + localIndex +
-                          " (Player " + client.getPlayerNumber() + ")" +
-                          " at position: " + localTank.getX() + "," + localTank.getZ());
+        // System.out.println("Controlling tank at index " + localIndex +
+        //                   " (Player " + client.getPlayerNumber() + ")" +
+        //                   " at position: " + localTank.getX() + "," + localTank.getZ());
 
         // Only control local tank
         if (localTank != null) {
@@ -524,9 +543,18 @@ public class TankSimulation {
                 localTank.rotateTurretDown(); // Rotate turret upward
             }
 
-            // Fire bullet
+            // Debug bullet firing
             if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) {
-                localTank.fireBullet(terrain, bullets); // Fire a bullet
+                System.out.println("SPACEBAR PRESSED");
+                Tank currentTank = tanks.get(localIndex);
+                if (!currentTank.isRemote()) {
+                    System.out.println("Creating bullet from tank: " + currentTank.getX() + "," + currentTank.getY() + "," + currentTank.getZ());
+                    Bullet bullet = new Bullet(currentTank, terrain);
+                    bullets.add(bullet);
+                    client.sendBulletState(bullet);
+                    System.out.println("Bullet created at: " + bullet.getX() + "," + bullet.getY() + "," + bullet.getZ());
+                    System.out.println("Total bullets: " + bullets.size());
+                }
             }
         }
     }
@@ -611,7 +639,7 @@ class Tank {
         // Increase barrelElevation to angle the barrel upward
         barrelElevation = Math.min(barrelElevation + barrelElevationSpeed, MAX_ELEVATION);
     }
-    
+
     public void rotateTurretDown() {
         // Decrease barrelElevation to angle the barrel downward
         barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
@@ -621,10 +649,14 @@ class Tank {
         return barrelElevation;
     }
 
-    public void fireBullet(Terrain terrain, List<Bullet> bullets) {
+    public void fireBullet(Terrain terrain, List<Bullet> bullets, GameClient client) {
+        System.out.println("Tank firing bullet"); // Debug output
         Bullet bullet = new Bullet(this, terrain);
         bullets.add(bullet);
-        System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+
+        if (!isRemote && client != null) {
+            client.sendBulletState(bullet);
+        }
     }
 
     public Tank(float x, float y, float z, float r, float g, float b) {
@@ -1093,9 +1125,12 @@ class Tank {
         this.targetZ = this.z;
         this.targetAngle = this.angle;
 
-        System.out.println("Tank position synced to: " + x + "," + z);
+        // debugging output of tank position
+        // System.out.println("Tank position synced to: " + x + "," + z);
     }
 }
+
+
 
 class OBJLoader {
     public static Model loadModel(String filename) throws IOException {
@@ -1114,7 +1149,7 @@ class OBJLoader {
                 normals.add(normal);
             } else if (tokens[0].equals("f")) {
                 int[] face = {Integer.parseInt(tokens[1].split("/")[0]) - 1, Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1};
-                faces.add(face);    
+                faces.add(face);
             }
         }
 
@@ -1293,185 +1328,13 @@ class Terrain {
         float weight1 = area1 / areaTotal;
         float weight2 = area2 / areaTotal;
         float weight3 = area3 / areaTotal;
- 
+
         // Interpolate the height using the weights
         return weight1 * v1Y + weight2 * v2Y + weight3 * v3Y;
     }
 
     private float triangleArea(float x1, float z1, float x2, float z2, float x3, float z3) {
-        return Math.abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
-    }
-}
-
-class Bullet {
-    private static final float SPEED = 0.1f; // Speed of the bullet
-    private static final int bulletTextureId = ImageLoader.loadImage("bullet.png");
-
-    private float x, y, z; // Bullet's position
-    private float r, g, b; // Bullet's color
-    private float directionX, directionY, directionZ; // Direction of the bullet
-
-    public Bullet(Tank tank, Terrain terrain) {
-        // first just getting the rgb because that's easy
-        this.r = tank.getR();
-        this.g = tank.getG();
-        this.b = tank.getB();
-
-        // the coords of the tank
-        float tankX = tank.getX();
-        float tankY = tank.getY();
-        float tankZ = tank.getZ();
-
-        // Get the tank's angles
-        float turretAngleInRads = (float) Math.toRadians(tank.getCombinedTurretAngle());
-        float barrelElevationInRads = (float) Math.toRadians(tank.getBarrelElevation());
-
-        // Calculate the direction vector for the bullet
-        float[] forwardVector = { 0, 0, 1 }; // Forward direction
-        float[] rotatedVector = rotateY(forwardVector, turretAngleInRads); // Rotate by turret angle
-        rotatedVector = rotateX(rotatedVector, -barrelElevationInRads); // Rotate by barrel elevation
-        rotatedVector = normalize(rotatedVector); // Normalize to get a unit vector
-
-        // Set the bullet's direction
-        this.directionX = rotatedVector[0];
-        this.directionY = rotatedVector[1];
-        this.directionZ = rotatedVector[2];
-
-        // Calculate the barrel's tip position
-        float barrelLength = tank.getBarrelLength();
-        float turretYOffset = tank.getTurretYOffset();
-        float tankBodyYOffset = tank.getTankBodyYOffset();
-        float averageHeight = getAverageHeight(tank, terrain);
-        float tankBodyHeight = tank.getTankBodyHeight();
-        float yOffset = averageHeight + tankBodyHeight + turretYOffset + tankBodyYOffset + 0.2f; // Additional height offset for the bullet
-        float[] barrelTipOffset = {0, yOffset, barrelLength};
-
-        // Rotate the barrel tip offset based on turret and barrel angles
-        float[] rotatedBarrelTipOffset = rotateY(barrelTipOffset, turretAngleInRads);
-        rotatedBarrelTipOffset = rotateX(rotatedBarrelTipOffset, barrelElevationInRads);
-
-        // Set the bullet's initial position to the barrel's tip
-        this.x = tankX + rotatedBarrelTipOffset[0];
-        this.y = tankY + rotatedBarrelTipOffset[1];
-        this.z = tankZ + rotatedBarrelTipOffset[2];
-    }
-
-    // See if this works?
-    public void update() {
-        x += directionX * SPEED;
-        y += directionY * SPEED;
-        z += directionZ * SPEED;
-    }
-
-    // renders bullet as 2d image
-    public void render() {
-        GL11.glPushMatrix();
-        GL11.glTranslatef(x, y, z);
-        GL11.glColor3f(r, g, b); // color for the bullet
-
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
-        GL11.glDisable(GL11.GL_LIGHTING);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, bulletTextureId);
-
-        GL11.glBegin(GL11.GL_QUADS);
-
-        GL11.glTexCoord2f(0.0f, 0.0f);
-        GL11.glVertex3f(-0.1f, -0.1f, 0.0f);
-
-        GL11.glTexCoord2f(1.0f, 0.0f);
-        GL11.glVertex3f(0.1f, -0.1f, 0.0f);
-
-        GL11.glTexCoord2f(1.0f, 1.0f);
-        GL11.glVertex3f(0.1f, 0.1f, 0.0f);
-
-        GL11.glTexCoord2f(0.0f, 1.0f);
-        GL11.glVertex3f(-0.1f, 0.1f, 0.0f);
-
-        GL11.glEnd();
-
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        GL11.glEnable(GL11.GL_LIGHTING);
-        GL11.glPopMatrix();
-    }
-
-    // Getter methods for position
-    public float getX() {
-        return x;
-    }
-
-    public float getY() {
-        return y;
-    }
-
-    public float getZ() {
-        return z;
-    }
-
-    // rotates a vector around the X-axis by a given angle
-    public float[] rotateX(float[] vector, float rads) {
-        float cos = (float) Math.cos(rads);
-        float sin = (float) Math.sin(rads);
-        return new float[] {
-                vector[0],
-                vector[1] * cos - vector[2] * sin,
-                vector[1] * sin + vector[2] * cos
-        };
-    }
-
-    // rotates a vector around the Y-axis by a given angle
-    public float[] rotateY(float[] vector, float rads) {
-        float cos = (float) Math.cos(rads);
-        float sin = (float) Math.sin(rads);
-        return new float[] {
-                vector[0] * cos + vector[2] * sin,
-                vector[1],
-                -vector[0] * sin + vector[2] * cos
-        };
-    }
-
-    // rotates a vector around the Z-axis by a given angle
-    public float[] rotateZ(float[] vector, float rads) {
-        float cos = (float) Math.cos(rads);
-        float sin = (float) Math.sin(rads);
-        return new float[] {
-                vector[0] * cos - vector[1] * sin,
-                vector[0] * sin + vector[1] * cos,
-                vector[2]
-        };
-    }
-
-    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
-    // but there some of the values besides average height are still needed. This only returns averageHeight.
-    public float getAverageHeight(Tank tank, Terrain terrain) {
-        int numWheelsPerSide = tank.getNumWheelsPerSide();
-        float tankLength = tank.getTankLength();
-
-        // Number of wheels per side
-        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
-
-        // Calculate the heights of all wheels
-        float[] leftWheelHeights = new float[numWheelsPerSide];
-        float[] rightWheelHeights = new float[numWheelsPerSide];
-
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
-            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
-            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
-        }
-
-        // Calculate the average height of the tank body (based on wheel heights)
-        float totalHeight = 0.0f;
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
-        }
-
-        return totalHeight / (numWheelsPerSide * 2);
-    }
-
-    // normalizes a vector to have a magnitude of 1.
-    public float[] normalize(float[] vector) {
-        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
+        return Math.abs((x1 * (z2 - z3) + x2 * (z3 - x1) + x3 * (x1 - z2)) / 2.0f);
     }
 }
 
@@ -1523,3 +1386,34 @@ class ImageLoader {
         return textureID;
     }
 }
+
+// NEW CODE: BulletState class to store the state of the player's bullet.
+// synchonizes the bullet state with the server
+// public class BulletState {
+//     private float x, y, z;
+//     private float directionX, directionY, directionZ;
+//     private float r, g, b;
+
+//     public BulletState(float x, float y, float z, float directionX, float directionY, float directionZ, float r, float g, float b) {
+//         this.x = x;
+//         this.y = y;
+//         this.z = z;
+//         this.directionX = directionX;
+//         this.directionY = directionY;
+//         this.directionZ = directionZ;
+//         this.r = r;
+//         this.g = g;
+//         this.b = b;
+//     }
+
+//     // Add getters
+//     public float getX() { return x; }
+//     public float getY() { return y; }
+//     public float getZ() { return z; }
+//     public float getDirectionX() { return directionX; }
+//     public float getDirectionY() { return directionY; }
+//     public float getDirectionZ() { return directionZ; }
+//     public float getR() { return r; }
+//     public float getG() { return g; }
+//     public float getB() { return b; }
+// }
