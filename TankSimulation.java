@@ -13,6 +13,7 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
+import javax.sound.sampled.*;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -75,11 +76,14 @@ public class TankSimulation {
     }
 
     // NEW CODE: cleanup method to close the client connection and GLFW window
-    private void cleanup() {
-        if (client != null){
+    private void cleanup()
+    {
+        if (client != null)
+        {
             client.stop(); // close the client connection
         }
-        if (window != 0) {
+        if (window != 0)
+        {
             GLFW.glfwDestroyWindow(window);
             GLFW.glfwTerminate();
         }
@@ -260,7 +264,7 @@ public class TankSimulation {
         for (int i = 0; i < bullets.size(); i++) {
             Bullet bullet = bullets.get(i);
             bullet.update();
-        
+
             // Remove bullets that go out of bounds
             if (bullet.getY() < 0 || bullet.getX() > 100 || bullet.getZ() > 100) {
                 bullets.remove(i);
@@ -340,7 +344,7 @@ public class TankSimulation {
         GL11.glEnable(GL11.GL_LEQUAL);
 
         // Set the light position
-        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f }); 
+        FloatBuffer lightPosition = BufferUtils.createFloatBuffer(4).put(new float[] { 0.0f, 10.0f, 10.0f, 1.0f });
         lightPosition.flip();
         GL11.glLightfv(GL11.GL_LIGHT0, GL11.GL_POSITION, lightPosition);
 
@@ -535,6 +539,7 @@ class Tank {
     protected float x, y, z;  // Change from private to protected
     private float targetX, targetY, targetZ, targetAngle;
     private boolean isRemote = false;
+    private long lastBulletFiredTime = 0; // Track the last time a bullet was fired
 
     public boolean isRemote() {
         return isRemote;
@@ -609,7 +614,7 @@ class Tank {
         // Increase barrelElevation to angle the barrel upward
         barrelElevation = Math.min(barrelElevation + barrelElevationSpeed, MAX_ELEVATION);
     }
-    
+
     public void rotateTurretDown() {
         // Decrease barrelElevation to angle the barrel downward
         barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
@@ -620,9 +625,15 @@ class Tank {
     }
 
     public void fireBullet(Terrain terrain, List<Bullet> bullets) throws Exception {
-        Bullet bullet = new Bullet(this, terrain);
-        bullets.add(bullet);
-        System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+        long currentTime = System.currentTimeMillis(); // Get the current time in milliseconds
+        if (currentTime - lastBulletFiredTime >= 1000) { // Check if at least 1 second has passed
+            Bullet bullet = new Bullet(this, terrain);
+            bullets.add(bullet);
+            lastBulletFiredTime = currentTime; // Update the last fired time
+            System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+        } else {
+            System.out.println("Cannot fire yet. Please wait.");
+        }
     }
 
     public Tank(float x, float y, float z, float r, float g, float b) {
@@ -774,6 +785,7 @@ class Tank {
         float tankBodyHeight = 0.55f; // The height of the tank body
 
         // Adjust the height of the tank body to be above the wheels
+        // The tank body is raised by half of its height so the bottom aligns with the wheels
         float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
         float frontLeftWheelY = leftWheelHeights[0];
         float frontRightWheelY = rightWheelHeights[0];
@@ -791,15 +803,19 @@ class Tank {
                 - (rearLeftWheelY + rearRightWheelY + midRearLeftWheelY + midRearRightWheelY) / 4.0f;
         // Apply the calculated pitch, roll, and average height to the tank body
         GL11.glPushMatrix();
+
         // Translate the tank body to the average height plus the offset to position it above the wheels
         GL11.glTranslatef(x, averageHeight + tankBodyYOffset, z);
         // Rotate the tank body for pitch (tilt forward/backward) and roll (tilt left/right)
         GL11.glRotatef(roll * 10.0f, 0, 0, 1); // Roll around the Z-axis
         GL11.glRotatef(pitch * 10.0f, 1, 0, 0); // Pitch around the X-axis
+
         // Rotate the tank in the direction it's facing
         GL11.glRotatef(angle, 0, 1, 0);
+
         // Render the tank body
         renderTankBody(); // Call the updated renderTankBody method
+
         // Render the wheels
         renderWheels(terrain); // Render the wheels based on terrain
         // Render the turret on top of the tank body
@@ -809,8 +825,8 @@ class Tank {
     }
 
     private void renderTurret() {
-        // GL11.glColor3f(r, g, b); // Color of the turret (same as tank body)
-        GL11.glColor3f(0.8f, 0.8f, 0.2f); // Yellow for testing
+        GL11.glColor3f(r, g, b); // Color of the turret (same as tank body)
+        // GL11.glColor3f(0.8f, 0.8f, 0.2f); // Yellow for testing
         float turretLength = 1.0f;
         float turretWidth = 0.8f;
         float turretHeight = 0.4f;
@@ -1112,7 +1128,7 @@ class OBJLoader {
                 normals.add(normal);
             } else if (tokens[0].equals("f")) {
                 int[] face = {Integer.parseInt(tokens[1].split("/")[0]) - 1, Integer.parseInt(tokens[2].split("/")[0]) - 1, Integer.parseInt(tokens[3].split("/")[0]) - 1};
-                faces.add(face);    
+                faces.add(face);
             }
         }
 
@@ -1299,7 +1315,7 @@ class Terrain {
         float weight1 = area1 / areaTotal;
         float weight2 = area2 / areaTotal;
         float weight3 = area3 / areaTotal;
- 
+
         // Interpolate the height using the weights
         return weight1 * v1Y + weight2 * v2Y + weight3 * v3Y;
     }
