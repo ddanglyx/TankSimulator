@@ -23,9 +23,7 @@ import java.nio.FloatBuffer;
 import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
+import javax.sound.sampled.*;
 import java.util.LinkedList;
 import java.util.Map;
 
@@ -251,7 +249,7 @@ public class TankSimulation {
     }
 
     // NEW CODE: updateGameState method to handle tank movement and network state
-    private void updateGameState() {
+    private void updateGameState() throws Exception {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
         Tank remoteTank = tanks.get(localIndex == 0 ? 1 : 0);
@@ -485,7 +483,7 @@ public class TankSimulation {
     }
 
     // NEW CODE: updateTankMovement method to handle local tank movement
-    private void updateTankMovement() {
+    private void updateTankMovement() throws Exception {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
 
@@ -621,7 +619,7 @@ class Tank {
         return barrelElevation;
     }
 
-    public void fireBullet(Terrain terrain, List<Bullet> bullets) {
+    public void fireBullet(Terrain terrain, List<Bullet> bullets) throws Exception {
         Bullet bullet = new Bullet(this, terrain);
         bullets.add(bullet);
         System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
@@ -1306,16 +1304,39 @@ class Terrain {
 class Bullet {
     private static final float SPEED = 0.1f; // Speed of the bullet
     private static final int bulletTextureId = ImageLoader.loadImage("bullet.png");
+    private static final File audioFile = new File("pew.wav"); // fire sound
 
     private float x, y, z; // Bullet's position
     private float r, g, b; // Bullet's color
     private float directionX, directionY, directionZ; // Direction of the bullet
 
-    public Bullet(Tank tank, Terrain terrain) {
+    public Bullet(Tank tank, Terrain terrain) throws Exception {
         // first just getting the rgb because that's easy
         this.r = tank.getR();
         this.g = tank.getG();
         this.b = tank.getB();
+
+        // making bullet sound
+        AudioInputStream ais = AudioSystem.getAudioInputStream(audioFile);
+        AudioFormat aisFormat = ais.getFormat();
+        AudioFormat supportedFormat = new AudioFormat(
+                AudioFormat.Encoding.PCM_SIGNED,
+                aisFormat.getSampleRate(),
+                16,
+                aisFormat.getChannels(),
+                aisFormat.getChannels() * 2,
+                aisFormat.getSampleRate(),
+                true
+        );
+        ais = AudioSystem.getAudioInputStream(supportedFormat, ais);
+
+        Clip clip = AudioSystem.getClip();
+        clip.open(ais);
+
+        FloatControl masterGain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+        masterGain.setValue(-20.0f);
+
+        clip.start();
 
         // the coords of the tank
         float tankX = tank.getX();
