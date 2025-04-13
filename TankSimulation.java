@@ -1305,7 +1305,7 @@ class Terrain {
 
 class Bullet {
     private static final float SPEED = 0.1f; // Speed of the bullet
-    private static final int bulletTextureId = loadImage("bullet.png");
+    private static final int bulletTextureId = ImageLoader.loadImage("bullet.png");
 
     private float x, y, z; // Bullet's position
     private float r, g, b; // Bullet's color
@@ -1440,8 +1440,44 @@ class Bullet {
         };
     }
 
+    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
+    // but there some of the values besides average height are still needed. This only returns averageHeight.
+    public float getAverageHeight(Tank tank, Terrain terrain) {
+        int numWheelsPerSide = tank.getNumWheelsPerSide();
+        float tankLength = tank.getTankLength();
+
+        // Number of wheels per side
+        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
+
+        // Calculate the heights of all wheels
+        float[] leftWheelHeights = new float[numWheelsPerSide];
+        float[] rightWheelHeights = new float[numWheelsPerSide];
+
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
+            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
+            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
+        }
+
+        // Calculate the average height of the tank body (based on wheel heights)
+        float totalHeight = 0.0f;
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
+        }
+
+        return totalHeight / (numWheelsPerSide * 2);
+    }
+
+    // normalizes a vector to have a magnitude of 1.
+    public float[] normalize(float[] vector) {
+        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
+    }
+}
+
+class ImageLoader {
     // added by Ethan; loads an image from path as a texture id
-    private static int loadImage(String imagePath) {
+    public static int loadImage(String imagePath) {
         STBImage.stbi_set_flip_vertically_on_load(true);
 
         IntBuffer width = BufferUtils.createIntBuffer(1);
@@ -1485,39 +1521,5 @@ class Bullet {
         STBImage.stbi_image_free(image);
 
         return textureID;
-    }
-
-    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
-    // but there some of the values besides average height are still needed. This only returns averageHeight.
-    public float getAverageHeight(Tank tank, Terrain terrain) {
-        int numWheelsPerSide = tank.getNumWheelsPerSide();
-        float tankLength = tank.getTankLength();
-
-        // Number of wheels per side
-        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
-
-        // Calculate the heights of all wheels
-        float[] leftWheelHeights = new float[numWheelsPerSide];
-        float[] rightWheelHeights = new float[numWheelsPerSide];
-
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
-            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
-            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
-        }
-
-        // Calculate the average height of the tank body (based on wheel heights)
-        float totalHeight = 0.0f;
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
-        }
-
-        return totalHeight / (numWheelsPerSide * 2);
-    }
-
-    // normalizes a vector to have a magnitude of 1.
-    public float[] normalize(float[] vector) {
-        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
     }
 }
