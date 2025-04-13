@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
 import javax.sound.sampled.*;
-
+import java.util.Iterator;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
@@ -263,15 +263,23 @@ public class TankSimulation {
         // Update local tank movement
         updateTankMovement();
 
-        for (int i = 0; i < bullets.size(); i++) {
-            Bullet bullet = bullets.get(i);
+        Iterator<Bullet> bulletIterator = bullets.iterator();
+        while (bulletIterator.hasNext()) {
+            Bullet bullet = bulletIterator.next();
             bullet.update();
 
-            // Remove bullets that go out of bounds
+            // Remove bullets that are out of bounds
             if (bullet.getY() < 0 || bullet.getX() > 100 || bullet.getZ() > 100) {
-                bullets.remove(i);
-                i--;
+                bulletIterator.remove();
+                System.out.println("Bullet removed - out of bounds");
             }
+        }
+        
+        // Add remote bullets
+        List<Bullet> newBullets = client.getRemoteBullets();
+        if (newBullets != null && !newBullets.isEmpty()) {
+            bullets.addAll(newBullets);
+            System.out.println("Added " + newBullets.size() + " remote bullets");
         }
 
         // Only update and send state for local tank
@@ -322,7 +330,10 @@ public class TankSimulation {
             }
         }
 
+	
+        System.out.println("Rendering " + bullets.size() + " bullets");
         for (Bullet bullet : bullets) {
+            System.out.println("Bullet position: " + bullet.getX() + "," + bullet.getY() + "," + bullet.getZ());
             bullet.render();
         }
 
@@ -528,9 +539,18 @@ public class TankSimulation {
                 localTank.rotateTurretDown(); // Rotate turret upward
             }
 
-            // Fire bullet
+            // Debug bullet firing
             if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) {
-                localTank.fireBullet(terrain, bullets); // Fire a bullet
+                System.out.println("SPACEBAR PRESSED");
+                Tank currentTank = tanks.get(localIndex);
+                if (!currentTank.isRemote()) {
+                   System.out.println("Creating bullet from tank: " + currentTank.getX() + "," + currentTank.getY() + "," + currentTank.getZ());
+                   Bullet bullet = new Bullet(currentTank, terrain);
+                    bullets.add(bullet);
+                    client.sendBulletState(bullet);
+                    System.out.println("Bullet created at: " + bullet.getX() + "," + bullet.getY() + "," + bullet.getZ());
+                    System.out.println("Total bullets: " + bullets.size());
+                }
             }
         }
     }
@@ -668,7 +688,7 @@ class Tank {
         return barrelElevation;
     }
 
-    public void fireBullet(Terrain terrain, List<Bullet> bullets) throws Exception {
+    public void fireBullet(Terrain terrain, List<Bullet> bullets, GameClient client) throws Exception {
         long currentTime = System.currentTimeMillis(); // Get the current time in milliseconds
         if (currentTime - lastBulletFiredTime >= 1000) { // Check if at least 1 second has passed
             try {
@@ -676,6 +696,9 @@ class Tank {
                 bullets.add(bullet);
                 lastBulletFiredTime = currentTime; // Update the last fired time
                 System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+                if (!isRemote && client != null) {
+                    client.sendBulletState(bullet);
+                }
             } catch (Exception e) {
                 System.err.println("Failed to fire bullet: " + e.getMessage());
                 e.printStackTrace();
@@ -1629,3 +1652,32 @@ class ImageLoader {
         return textureID;
     }
 }
+
+// NEW CODE: BulletState class to store the state of the player's bullet.
+// synchonizes the bullet state with the server
+// public class BulletState {
+//     private float x, y, z;
+//     private float directionX, directionY, directionZ;
+//     private float r, g, b;
+//     public BulletState(float x, float y, float z, float directionX, float directionY, float directionZ, float r, float g, float b) {
+//         this.x = x;
+//         this.y = y;
+//         this.z = z;
+//         this.directionX = directionX;
+//         this.directionY = directionY;
+//         this.directionZ = directionZ;
+//         this.r = r;
+//         this.g = g;
+//         this.b = b;
+//     }
+//     // Add getters
+//     public float getX() { return x; }
+//     public float getY() { return y; }
+//     public float getZ() { return z; }
+//     public float getDirectionX() { return directionX; }
+//     public float getDirectionY() { return directionY; }
+//     public float getDirectionZ() { return directionZ; }
+//     public float getR() { return r; }
+//     public float getG() { return g; }
+//     public float getB() { return b; }
+// }

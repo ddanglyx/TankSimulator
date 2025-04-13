@@ -15,6 +15,9 @@ public class GameClient {
     private BufferedReader in;
     private PrintWriter out;
     private Map<String, TankState> otherTanks = new HashMap<>();
+    private List<Bullet> remoteBullets = new ArrayList<>();
+    private long lastBulletTime = 0;
+    private static final long BULLET_COOLDOWN = 250; // 250ms cooldown to prevent spamming bullets, desync
 
     private GameClient(String playerName) {
         this.playerName = playerName;
@@ -96,18 +99,69 @@ public class GameClient {
         out.println(state.toString());
     }
 
-    // NEW CODE: parseTankStates method to handle incoming tank states from the server
-    private void parseTankStates(String data) {
-        // Format "playerName:x,y,z,angle;playerName2:..."
-        String[] segments = data.split(";");
-        Map<String, TankState> updated = new HashMap<>();
-        for (String seg : segments) {
-            if (!seg.trim().isEmpty()) {
-                String[] parts = seg.split(":");
-                updated.put(parts[0], TankState.fromString(parts[1]));
-            }
+    public void sendBulletState(Bullet bullet) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastBulletTime > BULLET_COOLDOWN) {
+            String bulletData = String.format("%f,%f,%f,%f,%f,%f,%f,%f,%f",
+                bullet.getX(), bullet.getY(), bullet.getZ(),
+                bullet.getDirectionX(), bullet.getDirectionY(), bullet.getDirectionZ(),
+                bullet.getR(), bullet.getG(), bullet.getB());
+            out.println("BULLET:" + bulletData);
+            lastBulletTime = currentTime;
         }
-        otherTanks = updated;
+    }
+
+    public List<Bullet> getRemoteBullets() {  // Changed return type from BulletState to Bullet
+        synchronized(remoteBullets) {
+            List<Bullet> bullets = new ArrayList<>(remoteBullets);
+            remoteBullets.clear();
+            return bullets;
+        }
+    }
+
+    private void parseTankStates(String data) {
+        if (data.startsWith("BULLET:")) {
+            // Handle bullet state
+            String bulletData = data.substring(7);
+            String[] parts = bulletData.split(",");
+            float[] values = new float[parts.length];
+            try {
+                for (int i = 0; i < parts.length; i++) {
+                    values[i] = Float.parseFloat(parts[i]);
+                }
+
+                synchronized(remoteBullets) {
+                    // Only add the bullet if we don't have any recent bullets at similar positions
+                    boolean isDuplicate = remoteBullets.stream().anyMatch(b ->
+                        Math.abs(b.getX() - values[0]) < 0.1f &&
+                        Math.abs(b.getZ() - values[2]) < 0.1f
+                    );
+
+                    if (!isDuplicate) {
+                        Bullet bullet = new Bullet(
+                            values[0], values[1], values[2],
+                            values[3], values[4], values[5],
+                            values[6], values[7], values[8]
+                        );
+                        remoteBullets.add(bullet);
+                        System.out.println("Added remote bullet at: " + values[0] + "," + values[1] + "," + values[2]);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error parsing bullet data: " + bulletData);
+            }
+        } else {
+            // Existing tank state parsing
+            String[] segments = data.split(";");
+            Map<String, TankState> updated = new HashMap<>();
+            for (String seg : segments) {
+                if (!seg.trim().isEmpty()) {
+                    String[] parts = seg.split(":");
+                    updated.put(parts[0], TankState.fromString(parts[1]));
+                }
+            }
+            otherTanks = updated;
+        }
     }
 
     // NEW CODE: getOtherTanks method to get the current state of other tanks
