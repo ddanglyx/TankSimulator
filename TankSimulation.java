@@ -1,5 +1,5 @@
-// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" TankSimulation
+// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" TankSimulation.java
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" TankSimulation
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
@@ -7,13 +7,13 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.stb.STBImage;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
+import javax.sound.sampled.*;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -24,9 +24,8 @@ import java.nio.FloatBuffer;
 import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
-import java.util.LinkedList;
-
 import javax.sound.sampled.*;
+import java.util.LinkedList;
 import java.util.Map;
 
 public class TankSimulation {
@@ -38,38 +37,27 @@ public class TankSimulation {
     private int currentTankIndex = 0;
     private Terrain terrain;
     private GameClient client;
-    private Tank playerTank; // Add this field if it doesn't already exist
     private String playerName;
     private boolean autoStart;
 
-    // NEW CODE:
     // New constructor accepting the player's name, autoStart flag, and GameClient
     public TankSimulation(String playerName, boolean autoStart, GameClient client) {
         this.playerName = playerName;
         this.autoStart = autoStart;
         this.client = client;
-    }
-
-    public void addBullet(Bullet bullet) {
-        bullets.add(bullet); // Add the bullet to the list
-    }
-
-    public Tank getTank() {
-        return playerTank; // Assuming `playerTank` is the tank controlled by the player
-    }
-
-    public static void main(String[] args) {
-        String playerName = "Player1"; // Replace with actual player name input
-        Terrain terrain = new Terrain("terrain.obj"); // Ensure this is initialized
-        GameClient client = new GameClient(playerName, terrain, null); // Pass null for simulation initially
-        TankSimulation simulation = new TankSimulation(playerName, true, client);
-        simulation.run();        //Play music on loop
+        //Play music on loop
         try {
             File audioFile = new File("music.wav");
             AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
             Clip clip = AudioSystem.getClip();
             clip.open(audioStream);
-            clip.loop(Clip.LOOP_CONTINUOUSLY); // This makes it loop forever
+        
+            // Lower the volume using FloatControl
+            FloatControl volumeControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            volumeControl.setValue(-10.0f); // Reduce volume by 10 decibels (adjust as needed)
+        
+            clip.loop(Clip.LOOP_CONTINUOUSLY); // Loop the music
+            clip.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -264,7 +252,7 @@ public class TankSimulation {
     }
 
     // NEW CODE: updateGameState method to handle tank movement and network state
-    private void updateGameState() {
+    private void updateGameState() throws Exception {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
         Tank remoteTank = tanks.get(localIndex == 0 ? 1 : 0);
@@ -320,11 +308,9 @@ public class TankSimulation {
 
     // NEW CODE: syncFromState method in Tank class to update tank position from network state
     private void render() {
-        // Clear the screen and reset transformations
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glLoadIdentity();
-    
-        // Update the camera based on the player's tank
+
         int localIndex = client.getPlayerNumber() - 1;
         if (localIndex >= 0 && localIndex < tanks.size()) {
             Tank localTank = tanks.get(localIndex);
@@ -332,27 +318,20 @@ public class TankSimulation {
                 updateCamera(localTank);
             }
         }
-    
-        // Render bullets
+
         for (Bullet bullet : bullets) {
             bullet.render();
         }
-    
-        // Render the terrain
+
+        // Render terrain and tanks
         if (terrain != null) {
             terrain.render();
         }
-    
-        // Render the player's tank
-        Tank myTank = getTank();
-        if (myTank != null) {
-            myTank.render(terrain);
-        }
-    
-        // Render other players' tanks
-        for (TankState state : client.getOtherTanks().values()) {
-            Tank otherTank = Tank.fromState(state, terrain); // Create a tank object from its state
-            otherTank.render(terrain);
+
+        for (Tank tank : tanks) {
+            if (tank != null) {
+                tank.render(terrain);
+            }
         }
     }
 
@@ -507,7 +486,7 @@ public class TankSimulation {
     }
 
     // NEW CODE: updateTankMovement method to handle local tank movement
-    private void updateTankMovement() {
+    private void updateTankMovement() throws Exception {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
 
@@ -548,7 +527,7 @@ public class TankSimulation {
 
             // Fire bullet
             if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) {
-                localTank.fireBullet(terrain, bullets, client); // Fire a bullet
+                localTank.fireBullet(terrain, bullets); // Fire a bullet
             }
         }
     }
@@ -559,8 +538,47 @@ class Tank {
     protected float x, y, z;  // Change from private to protected
     private float targetX, targetY, targetZ, targetAngle;
     private boolean isRemote = false;
-    private long lastBulletFiredTime = 0; // Time of the last bullet fired
-    private static final long FIRE_COOLDOWN = 1000; // Cooldown in milliseconds (1 second)
+    private long lastBulletFiredTime = 0; // Track the last time a bullet was fired
+    private static final int wheelTextureId = loadImage("wheel.png"); // Load the wheel texture
+    private static final File turretRotateSoundFile = new File("turretRotate.wav");
+
+    private void playTurretRotateSound() {
+        try {
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(turretRotateSoundFile);
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioStream);
+    
+            // Lower the volume if needed
+            FloatControl volumeControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            volumeControl.setValue(-10.0f); // Reduce volume by 10 decibels (adjust as needed)
+    
+            clip.start();
+        } catch (Exception e) {
+            System.err.println("Failed to play turret rotation sound: " + e.getMessage());
+        }
+    }
+
+    private static int loadImage(String imagePath) {
+        STBImage.stbi_set_flip_vertically_on_load(true);
+    
+        IntBuffer width = BufferUtils.createIntBuffer(1);
+        IntBuffer height = BufferUtils.createIntBuffer(1);
+        IntBuffer channels = BufferUtils.createIntBuffer(1);
+    
+        ByteBuffer image = STBImage.stbi_load(imagePath, width, height, channels, 4);
+        if (image == null) {
+            throw new RuntimeException("Failed to load texture: " + imagePath);
+        }
+    
+        int textureID = GL11.glGenTextures();
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureID);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, width.get(0), height.get(0), 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, image);
+    
+        STBImage.stbi_image_free(image);
+        return textureID;
+    }
 
     public boolean isRemote() {
         return isRemote;
@@ -607,7 +625,6 @@ class Tank {
     private float turretWidth = 0.85f;
     private float turretHeight = 0.4f;
     private float turretYOffset = 0.5f;
-
     private float barrelRadius = 0.15f;
     private float barrelLength = 2.0f;
     private int numSegments = 36;
@@ -617,7 +634,6 @@ class Tank {
     private float tankBodyYOffset = 4.0f * tankBodyHeight + tankBodyHeight / 2.0f;
     int numWheelsPerSide = 8;
     float tankLength = 3.5f; // Length of the tank body
-
     private float barrelElevation = 0.0f; // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f; // Speed of barrel movement
     private final float MIN_ELEVATION = -10.0f; // Minimum elevation angle (downward)
@@ -625,38 +641,44 @@ class Tank {
 
     public void rotateTurretLeft() {
         turretAngle += turretRotationSpeed; // Adjust this according to how much you want to rotate
+        playTurretRotateSound(); // Play the sound
     }
 
     public void rotateTurretRight() {
         turretAngle -= turretRotationSpeed; // Adjust this according to how much you want to rotate
+        playTurretRotateSound(); // Play the sound
     }
 
     public void rotateTurretUp() {
         // Increase barrelElevation to angle the barrel upward
         barrelElevation = Math.min(barrelElevation + barrelElevationSpeed, MAX_ELEVATION);
+        playTurretRotateSound(); // Play the sound
     }
     
     public void rotateTurretDown() {
         // Decrease barrelElevation to angle the barrel downward
         barrelElevation = Math.max(barrelElevation - barrelElevationSpeed, MIN_ELEVATION);
+        playTurretRotateSound(); // Play the sound
     }
 
     public float getBarrelElevation() {
         return barrelElevation;
     }
 
-    public void fireBullet(Terrain terrain, List<Bullet> bullets, GameClient client) {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastBulletFiredTime >= FIRE_COOLDOWN) {
-            Bullet bullet = new Bullet(this, terrain);
-            bullets.add(bullet);
-            lastBulletFiredTime = currentTime;
-
-            // Send bullet data to the server
-            client.sendBulletData(bullet.serialize());
-            System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+    public void fireBullet(Terrain terrain, List<Bullet> bullets) {
+        long currentTime = System.currentTimeMillis(); // Get the current time in milliseconds
+        if (currentTime - lastBulletFiredTime >= 1000) { // Check if at least 1 second has passed
+            try {
+                Bullet bullet = new Bullet(this, terrain);
+                bullets.add(bullet);
+                lastBulletFiredTime = currentTime; // Update the last fired time
+                System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+            } catch (Exception e) {
+                System.err.println("Failed to fire bullet: " + e.getMessage());
+                e.printStackTrace();
+            }
         } else {
-            System.out.println("Cannot fire yet. Cooldown in progress.");
+            System.out.println("Cannot fire yet. Please wait.");
         }
     }
 
@@ -1008,120 +1030,122 @@ class Tank {
         GL11.glPopMatrix();
     }
 
-    private void renderWheel() {
+    private void renderWheels(Terrain terrain) {
         float radius = 0.3f;
         float width = 0.5f;
         int numSegments = 36;
-
-        GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for wheels
-        GL11.glShadeModel(GL11.GL_SMOOTH);
-
-        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.5f, 0.5f, 0.5f, 1.0f});
-        wheelSpecular.flip();
-        GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, wheelSpecular);
-        GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 16.0f); // Low shininess for wheels
-
-        GL11.glPushMatrix();
-        GL11.glRotatef(90, 0, 1, 0);
-
-        // Front face (at z = -width/2)
-        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
-        GL11.glVertex3f(0.0f, 0.0f, -width / 2); // Center of the circle
-        for (int i = 0; i <= numSegments; i++) {
-            double angle = 2 * Math.PI * i / numSegments;
-            GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, -width / 2);
-        }
-        GL11.glEnd();
-
-        // Rear face (at z = +width/2)
-        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
-        GL11.glVertex3f(0.0f, 0.0f, width / 2); // Center of the circle
-        for (int i = 0; i <= numSegments; i++) {
-            double angle = 2 * Math.PI * i / numSegments;
-            GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, width / 2);
-        }
-        GL11.glEnd();
-
-        GL11.glBegin(GL11.GL_QUAD_STRIP);
-        for (int i = 0; i <= numSegments; i++) {
-            double angle = 2 * Math.PI * i / numSegments;
-            float x = (float) Math.cos(angle) * radius;
-            float y = (float) Math.sin(angle) * radius;
-
-            // Set normals to make wheel sides visible
-            GL11.glNormal3f(x, y, 0);
-            GL11.glVertex3f(x, y, -width / 2);
-            GL11.glVertex3f(x, y, width / 2);
-        }
-        GL11.glEnd();
-        GL11.glPopMatrix();
-    }
-
-    private void renderWheels(Terrain terrain) {
-        GL11.glColor3f(0.0f, 0.0f, 0.0f); // Black color for wheels
-
+    
         // Define the wheel height offset
         float wheelHeightOffset = 0.8f; // Lower the wheels by this amount relative to the tank body
         float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
-
+    
+        // Helper function to render a single wheel
+        Runnable renderSingleWheel = () -> {
+            // Enable 2D textures and bind the wheel texture
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, wheelTextureId);
+    
+            GL11.glColor3f(1.0f, 1.0f, 1.0f); // Set color to white to display the texture
+            GL11.glShadeModel(GL11.GL_SMOOTH);
+    
+            FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.5f, 0.5f, 0.5f, 1.0f });
+            wheelSpecular.flip();
+            GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, wheelSpecular);
+            GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 16.0f); // Low shininess for wheels
+    
+            GL11.glPushMatrix();
+            GL11.glRotatef(90, 0, 1, 0);
+    
+            // Front face (at z = -width/2)
+            GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+            GL11.glTexCoord2f(0.5f, 0.5f); // Center of the texture
+            GL11.glVertex3f(0.0f, 0.0f, -width / 2); // Center of the circle
+            for (int i = 0; i <= numSegments; i++) {
+                double angle = 2 * Math.PI * i / numSegments;
+                float x = (float) Math.cos(angle) * radius;
+                float y = (float) Math.sin(angle) * radius;
+                GL11.glTexCoord2f((x / radius + 1) / 2, (y / radius + 1) / 2); // Map texture coordinates
+                GL11.glVertex3f(x, y, -width / 2);
+            }
+            GL11.glEnd();
+    
+            // Rear face (at z = +width/2)
+            GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+            GL11.glTexCoord2f(0.5f, 0.5f); // Center of the texture
+            GL11.glVertex3f(0.0f, 0.0f, width / 2); // Center of the circle
+            for (int i = 0; i <= numSegments; i++) {
+                double angle = 2 * Math.PI * i / numSegments;
+                float x = (float) Math.cos(angle) * radius;
+                float y = (float) Math.sin(angle) * radius;
+                GL11.glTexCoord2f((x / radius + 1) / 2, (y / radius + 1) / 2); // Map texture coordinates
+                GL11.glVertex3f(x, y, width / 2);
+            }
+            GL11.glEnd();
+    
+            // Side faces (connecting front and rear)
+            GL11.glBegin(GL11.GL_QUAD_STRIP);
+            for (int i = 0; i <= numSegments; i++) {
+                double angle = 2 * Math.PI * i / numSegments;
+                float x = (float) Math.cos(angle) * radius;
+                float y = (float) Math.sin(angle) * radius;
+    
+                GL11.glNormal3f(x, y, 0); // Set normals to make wheel sides visible
+                GL11.glVertex3f(x, y, -width / 2);
+                GL11.glVertex3f(x, y, width / 2);
+            }
+            GL11.glEnd();
+    
+            GL11.glPopMatrix();
+            GL11.glDisable(GL11.GL_TEXTURE_2D); // Disable 2D textures
+        };
+    
         // Render wheels on the left side
-        for (int i = 0; i <= numWheelsPerSide; i++) {
+        for (int i = 0; i < numWheelsPerSide; i++) {
             float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
             float wheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + wheelZ); // Get terrain height
-
+    
             GL11.glPushMatrix();
             GL11.glTranslatef(-0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
-
+    
             // Make the front wheels smaller and raised up
-            if (i == 0) { // First two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+            if (i == 0) { // First wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheel slightly
             }
-
+    
             // Make the back wheels smaller and raised up
-            if (i == numWheelsPerSide) { // Last two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
+            if (i == numWheelsPerSide - 1) { // Last wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheel slightly
             }
-
-            renderWheel();
+    
+            renderSingleWheel.run(); // Render the wheel
             GL11.glPopMatrix();
         }
-
+    
         // Render wheels on the right side
-        for (int i = 0; i <= numWheelsPerSide; i++) {
+        for (int i = 0; i < numWheelsPerSide; i++) {
             float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
             float wheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + wheelZ); // Get terrain height
-
+    
             GL11.glPushMatrix();
             GL11.glTranslatef(0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
-
+    
             // Make the front wheels smaller and raised up
-            if (i == 0) { // First two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+            if (i == 0) { // First wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheel slightly
             }
-
+    
             // Make the back wheels smaller and raised up
-            if (i == numWheelsPerSide) { // Last two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
+            if (i == numWheelsPerSide - 1) { // Last wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheel slightly
             }
-
-            renderWheel();
+    
+            renderSingleWheel.run(); // Render the wheel
             GL11.glPopMatrix();
         }
-    }
-
-    public static Tank fromState(TankState state, Terrain terrain) {
-        // Create a new Tank object using the state data
-        Tank tank = new Tank(state.getX(), state.getY(), state.getZ(), 0.0f, 0.0f, 1.0f);
-        tank.setTargetX(state.getX());
-        tank.setTargetY(state.getY());
-        tank.setTargetZ(state.getZ());
-        tank.setTargetAngle(state.getAngle());
-        tank.setRemote(true); // Mark this tank as remote
-        return tank;
     }
 
     public void syncFromState(TankState state) {
@@ -1218,6 +1242,7 @@ class Model {
 
 class Terrain {
     private Model model;
+    private static final int textureId = ImageLoader.loadImage("epic_grass.png");
 
     public Terrain(String objFilePath) {
         File file = new File(objFilePath);
@@ -1253,6 +1278,8 @@ class Terrain {
         GL11.glMaterialfv(GL11.GL_FRONT_AND_BACK, GL11.GL_DIFFUSE, terrainDiffuse);
         GL11.glMaterialfv(GL11.GL_FRONT_AND_BACK, GL11.GL_SPECULAR, terrainSpecular);
         GL11.glMaterialf(GL11.GL_FRONT_AND_BACK, GL11.GL_SHININESS, 10.0f); // Lower shininess for a more matte look
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
 
         float[] vertices = model.getVertices();
         float[] normals = model.getNormals();
@@ -1265,13 +1292,18 @@ class Terrain {
             int vertexIndex3 = indices[i + 2] * 3;
 
             GL11.glNormal3f(normals[vertexIndex1], normals[vertexIndex1 + 1], normals[vertexIndex1 + 2]);
+            GL11.glTexCoord2f(vertices[vertexIndex1], vertices[vertexIndex1 + 2]);
             GL11.glVertex3f(vertices[vertexIndex1], vertices[vertexIndex1 + 1], vertices[vertexIndex1 + 2]);
             GL11.glNormal3f(normals[vertexIndex2], normals[vertexIndex2 + 1], normals[vertexIndex2 + 2]);
+            GL11.glTexCoord2f(vertices[vertexIndex2], vertices[vertexIndex2 + 2]);
             GL11.glVertex3f(vertices[vertexIndex2], vertices[vertexIndex2 + 1], vertices[vertexIndex2 + 2]);
             GL11.glNormal3f(normals[vertexIndex3], normals[vertexIndex3 + 1], normals[vertexIndex3 + 2]);
+            GL11.glTexCoord2f(vertices[vertexIndex3], vertices[vertexIndex3 + 2]);
             GL11.glVertex3f(vertices[vertexIndex3], vertices[vertexIndex3 + 1], vertices[vertexIndex3 + 2]);
         }
         GL11.glEnd();
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
     }
 
     public float getTerrianHeightAt(float x, float z) {
@@ -1347,42 +1379,41 @@ class Terrain {
 }
 
 class Bullet {
-    public String serialize() {
-        return x + "," + y + "," + z + "," + directionX + "," + directionY + "," + directionZ;
-    }
-    
-    public static Bullet deserialize(String data, Terrain terrain, Tank tank) {
-        String[] parts = data.split(",");
-        float x = Float.parseFloat(parts[0]);
-        float y = Float.parseFloat(parts[1]);
-        float z = Float.parseFloat(parts[2]);
-        float directionX = Float.parseFloat(parts[3]);
-        float directionY = Float.parseFloat(parts[4]);
-        float directionZ = Float.parseFloat(parts[5]);
-    
-        // Create a new Bullet using the provided Tank and Terrain
-        Bullet bullet = new Bullet(tank, terrain);
-        bullet.x = x;
-        bullet.y = y;
-        bullet.z = z;
-        bullet.directionX = directionX;
-        bullet.directionY = directionY;
-        bullet.directionZ = directionZ;
-        return bullet;
-    }
-    
     private static final float SPEED = 0.1f; // Speed of the bullet
-    private static final int bulletTextureId = loadImage("bullet.png");
+    private static final int bulletTextureId = ImageLoader.loadImage("bullet.png");
+    private static final File audioFile = new File("shoot.wav"); // fire sound
 
     private float x, y, z; // Bullet's position
     private float r, g, b; // Bullet's color
     private float directionX, directionY, directionZ; // Direction of the bullet
 
-    public Bullet(Tank tank, Terrain terrain) {
+    public Bullet(Tank tank, Terrain terrain) throws Exception {
         // first just getting the rgb because that's easy
         this.r = tank.getR();
         this.g = tank.getG();
         this.b = tank.getB();
+
+        // making bullet sound
+        AudioInputStream ais = AudioSystem.getAudioInputStream(audioFile);
+        AudioFormat aisFormat = ais.getFormat();
+        AudioFormat supportedFormat = new AudioFormat(
+                AudioFormat.Encoding.PCM_SIGNED,
+                aisFormat.getSampleRate(),
+                16,
+                aisFormat.getChannels(),
+                aisFormat.getChannels() * 2,
+                aisFormat.getSampleRate(),
+                true
+        );
+        ais = AudioSystem.getAudioInputStream(supportedFormat, ais);
+
+        Clip clip = AudioSystem.getClip();
+        clip.open(ais);
+
+        FloatControl masterGain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+        masterGain.setValue(-20.0f);
+
+        clip.start();
 
         // the coords of the tank
         float tankX = tank.getX();
@@ -1407,9 +1438,9 @@ class Bullet {
         // Calculate the barrel's tip position
         float barrelLength = tank.getBarrelLength();
         float turretYOffset = tank.getTurretYOffset();
-        float tankBodyHeight = tank.getTankBodyHeight();
         float tankBodyYOffset = tank.getTankBodyYOffset();
         float averageHeight = getAverageHeight(tank, terrain);
+        float tankBodyHeight = tank.getTankBodyHeight();
         float yOffset = averageHeight + tankBodyHeight + turretYOffset + tankBodyYOffset + 0.2f; // Additional height offset for the bullet
         float[] barrelTipOffset = {0, yOffset, barrelLength};
 
@@ -1435,19 +1466,27 @@ class Bullet {
         GL11.glPushMatrix();
         GL11.glTranslatef(x, y, z);
         GL11.glColor3f(r, g, b); // color for the bullet
+
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, bulletTextureId);
+
         GL11.glBegin(GL11.GL_QUADS);
+
         GL11.glTexCoord2f(0.0f, 0.0f);
         GL11.glVertex3f(-0.1f, -0.1f, 0.0f);
+
         GL11.glTexCoord2f(1.0f, 0.0f);
         GL11.glVertex3f(0.1f, -0.1f, 0.0f);
+
         GL11.glTexCoord2f(1.0f, 1.0f);
         GL11.glVertex3f(0.1f, 0.1f, 0.0f);
+
         GL11.glTexCoord2f(0.0f, 1.0f);
         GL11.glVertex3f(-0.1f, 0.1f, 0.0f);
+
         GL11.glEnd();
+
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_LIGHTING);
         GL11.glPopMatrix();
@@ -1499,8 +1538,44 @@ class Bullet {
         };
     }
 
+    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
+    // but there some of the values besides average height are still needed. This only returns averageHeight.
+    public float getAverageHeight(Tank tank, Terrain terrain) {
+        int numWheelsPerSide = tank.getNumWheelsPerSide();
+        float tankLength = tank.getTankLength();
+
+        // Number of wheels per side
+        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
+
+        // Calculate the heights of all wheels
+        float[] leftWheelHeights = new float[numWheelsPerSide];
+        float[] rightWheelHeights = new float[numWheelsPerSide];
+
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
+            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
+            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
+        }
+
+        // Calculate the average height of the tank body (based on wheel heights)
+        float totalHeight = 0.0f;
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
+        }
+
+        return totalHeight / (numWheelsPerSide * 2);
+    }
+
+    // normalizes a vector to have a magnitude of 1.
+    public float[] normalize(float[] vector) {
+        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
+    }
+}
+
+class ImageLoader {
     // added by Ethan; loads an image from path as a texture id
-    private static int loadImage(String imagePath) {
+    public static int loadImage(String imagePath) {
         STBImage.stbi_set_flip_vertically_on_load(true);
 
         IntBuffer width = BufferUtils.createIntBuffer(1);
@@ -1544,37 +1619,5 @@ class Bullet {
         STBImage.stbi_image_free(image);
 
         return textureID;
-    }
-
-    public float getAverageHeight(Tank tank, Terrain terrain) {
-        int numWheelsPerSide = tank.getNumWheelsPerSide();
-        float tankLength = tank.getTankLength();
-
-        // Number of wheels per side
-        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
-
-        // Calculate the heights of all wheels
-        float[] leftWheelHeights = new float[numWheelsPerSide];
-        float[] rightWheelHeights = new float[numWheelsPerSide];
-
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
-            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
-            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
-        }
-
-        // Calculate the average height of the tank body (based on wheel heights)
-        float totalHeight = 0.0f;
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
-        }
-
-        return totalHeight / (numWheelsPerSide * 2);
-    }
-
-    // normalizes a vector to have a magnitude of 1.
-    public float[] normalize(float[] vector) {
-        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
     }
 }

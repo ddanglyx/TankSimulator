@@ -1,5 +1,5 @@
-// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" GameClient.java
-// java -classpath ".;C:\Program Files\lwjgl-release-3.3.4-custom\*" GameClient
+// javac -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" GameClient.java
+// java -classpath ".;C:\Program Files\lwjgl-release-3.3.6-custom\*" GameClient
 
 import org.lwjgl.glfw.*;
 import java.io.*;
@@ -7,8 +7,6 @@ import java.net.*;
 import java.util.*;
 
 public class GameClient {
-    private Terrain terrain;
-    private TankSimulation simulation;
     private String playerName;
     private int playerNumber;
     private boolean gameStarted = false;
@@ -17,22 +15,17 @@ public class GameClient {
     private PrintWriter out;
     private Map<String, TankState> otherTanks = new HashMap<>();
 
-    private synchronized void setGameStarted(boolean started) {
-        this.gameStarted = started;
-        notifyAll(); // Notify waiting threads when the game starts
-    }
-
-    public GameClient(String playerName, Terrain terrain, TankSimulation simulation) {
+    private GameClient(String playerName) {
         this.playerName = playerName;
         try {
             socket = new Socket("localhost", 12344);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // NEW CODE: Send player name to server
+            // Send player name to server
             out.println(playerName);
 
-            // NEW CODE: Read player number first
+            // Read player number first
             String response = in.readLine();
             if (response == null || response.equals("SERVER_FULL")) {
                 throw new IOException("Server is full. Please try again later.");
@@ -45,7 +38,7 @@ public class GameClient {
                 throw new IOException("Invalid player number format: " + response);
             }
 
-            // NEW CODE: Start a new thread to read from the server
+            // Start listener thread for server messages
             new Thread(() -> {
                 try {
                     String line;
@@ -53,23 +46,17 @@ public class GameClient {
                         System.out.println("Debug: Received from server: " + line);
                         if (line.equals("START")) {
                             System.out.println("Game is starting!");
-                            setGameStarted(true); // Use synchronized setter
+                            gameStarted = true;
                             break; // Exit the read loop after receiving START
                         }
                     }
-                    if (isGameStarted()) {
-                        // Start a new thread for handling game updates
+                    // Start a new thread for handling game updates after START
+                    if (gameStarted) {
                         new Thread(() -> {
                             try {
                                 String updateLine;
                                 while ((updateLine = in.readLine()) != null) {
-                                    if (updateLine.startsWith("BULLET:")) {
-                                        String bulletData = updateLine.substring(7);
-                                        Tank tank = simulation.getTank(); // Ensure this method exists to retrieve the
-                                                                          // current tank
-                                        Bullet bullet = Bullet.deserialize(bulletData, terrain, tank);
-                                        simulation.addBullet(bullet);
-                                    } else if (updateLine.contains(":")) {
+                                    if (updateLine.contains(":")) {
                                         parseTankStates(updateLine);
                                     }
                                 }
@@ -80,26 +67,19 @@ public class GameClient {
                     }
                 } catch (IOException e) {
                     System.err.println("Connection lost: " + e.getMessage());
-                    setGameStarted(false); // Use synchronized setter
+                    gameStarted = false;
                 }
             }).start();
 
-            // NEW CODE: Debugging if failed to connect to server
         } catch (IOException e) {
             throw new RuntimeException("Failed to connect to server: " + e.getMessage(), e);
         }
     }
 
-    public static GameClient initializeClient(String playerName, Terrain terrain, TankSimulation simulation) {
-        return new GameClient(playerName, terrain, simulation);
+    public static GameClient initializeClient(String playerName) {
+        return new GameClient(playerName);
     }
 
-    public void sendBulletData(String bulletData) {
-        // Logic to send bullet data to the server
-        System.out.println("Sending bullet data: " + bulletData);
-    }
-
-    // NEW CODE: Getters for player name, number, and game state
     public boolean isGameStarted() {
         return gameStarted;
     }
@@ -112,8 +92,6 @@ public class GameClient {
         out.println(state.toString());
     }
 
-    // NEW CODE: parseTankStates method to handle incoming tank states from the
-    // server
     private void parseTankStates(String data) {
         // Format "playerName:x,y,z,angle;playerName2:..."
         String[] segments = data.split(";");
@@ -127,12 +105,10 @@ public class GameClient {
         otherTanks = updated;
     }
 
-    // NEW CODE: getOtherTanks method to get the current state of other tanks
     public Map<String, TankState> getOtherTanks() {
         return otherTanks;
     }
 
-    // NEW CODE: stop method to close the socket connection
     public void stop() {
         try {
             socket.close();
@@ -145,22 +121,17 @@ public class GameClient {
         java.util.Scanner scanner = new java.util.Scanner(System.in);
         System.out.print("Enter your name: ");
         String name = scanner.nextLine();
-        GameClient client = GameClient.initializeClient(name, new Terrain("terrain.obj"),
-                new TankSimulation(name, false, null));
-        System.out.println("Waiting for other player to connect...");
+        GameClient client = GameClient.initializeClient(name);
 
-        synchronized (client) {
-            while (!client.isGameStarted()) {
-                try {
-                    client.wait(); // Wait until notified that the game has started
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    System.err.println("Interrupted while waiting for game to start.");
-                    return;
-                }
+        System.out.println("Waiting for other player to connect...");
+        while (!client.isGameStarted()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
             }
         }
-
         System.out.println("Game started. Player number: " + client.getPlayerNumber());
         System.out.println("Starting TankSimulation...");
 
