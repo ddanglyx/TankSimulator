@@ -565,6 +565,25 @@ class Tank {
     private static final int wheelTextureId = loadImage("wheel.png"); // Load the wheel texture
     private static final File turretRotateSoundFile = new File("turretRotate.wav");
 
+    public float getBarrelDirectionX() {
+        float turretAngleInRads = (float) Math.toRadians(turretAngle + angle);
+        float barrelElevationInRads = (float) Math.toRadians(barrelElevation);
+        return (float) (Math.sin(turretAngleInRads) * Math.cos(barrelElevationInRads));
+    }
+
+    // Method to get the Y component of the barrel's direction
+    public float getBarrelDirectionY() {
+        float barrelElevationInRads = (float) Math.toRadians(barrelElevation);
+        return (float) Math.sin(barrelElevationInRads);
+    }
+
+    // Method to get the Z component of the barrel's direction
+    public float getBarrelDirectionZ() {
+        float turretAngleInRads = (float) Math.toRadians(turretAngle + angle);
+        float barrelElevationInRads = (float) Math.toRadians(barrelElevation);
+        return (float) (Math.cos(turretAngleInRads) * Math.cos(barrelElevationInRads));
+    }
+    
     private void playTurretRotateSound() {
         try {
             AudioInputStream audioStream = AudioSystem.getAudioInputStream(turretRotateSoundFile);
@@ -688,24 +707,36 @@ class Tank {
         return barrelElevation;
     }
 
-    public void fireBullet(Terrain terrain, List<Bullet> bullets, GameClient client) throws Exception {
-        long currentTime = System.currentTimeMillis(); // Get the current time in milliseconds
-        if (currentTime - lastBulletFiredTime >= 1000) { // Check if at least 1 second has passed
-            try {
-                Bullet bullet = new Bullet(this, terrain);
-                bullets.add(bullet);
-                lastBulletFiredTime = currentTime; // Update the last fired time
-                System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
-                if (!isRemote && client != null) {
-                    client.sendBulletState(bullet);
-                }
-            } catch (Exception e) {
-                System.err.println("Failed to fire bullet: " + e.getMessage());
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("Cannot fire yet. Please wait.");
-        }
+    public void fireBullet(Terrain terrain, List<Bullet> bullets, GameClient client) {
+        // Tank's current position
+        float tankX = this.getX();
+        float tankY = this.getY();
+        float tankZ = this.getZ();
+    
+        // Barrel orientation (assume you have methods to get these values)
+        float barrelLength = 2.0f; // Example length of the barrel
+        float barrelHeightOffset = 1.5f; // Height offset of the barrel from the tank's base
+        float barrelDirectionX = this.getBarrelDirectionX();
+        float barrelDirectionY = this.getBarrelDirectionY();
+        float barrelDirectionZ = this.getBarrelDirectionZ();
+    
+        // Calculate barrel tip position
+        float barrelTipX = tankX + barrelDirectionX * barrelLength;
+        float barrelTipY = tankY + barrelHeightOffset;
+        float barrelTipZ = tankZ + barrelDirectionZ * barrelLength;
+    
+        // Create a new bullet at the barrel tip
+        Bullet bullet = new Bullet(
+            barrelTipX, barrelTipY, barrelTipZ,
+            barrelDirectionX, barrelDirectionY, barrelDirectionZ,
+            1.0f, 0.0f, 0.0f // Example color (red)
+        );
+    
+        // Add the bullet to the list
+        bullets.add(bullet);
+    
+        // Send bullet data to the server
+        client.sendBulletState(bullet);
     }
 
     public Tank(float x, float y, float z, float r, float g, float b) {
@@ -1418,6 +1449,18 @@ class Bullet {
     private float r, g, b; // Bullet's color
     private float directionX, directionY, directionZ; // Direction of the bullet
 
+    public Bullet(float x, float y, float z, float directionX, float directionY, float directionZ, float r, float g, float b) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.directionX = directionX;
+        this.directionY = directionY;
+        this.directionZ = directionZ;
+        this.r = r;
+        this.g = g;
+        this.b = b;
+    }
+
     public Bullet(Tank tank, Terrain terrain) throws Exception {
         // first just getting the rgb because that's easy
         this.r = tank.getR();
@@ -1534,6 +1577,31 @@ class Bullet {
 
     public float getZ() {
         return z;
+    }
+
+    public float getDirectionX() {
+        return directionX;
+    }
+
+    public float getDirectionY() {
+        return directionY;
+    }
+
+    public float getDirectionZ() {
+        return directionZ;
+    }
+
+    // Add getter methods for color
+    public float getR() {
+        return r;
+    }
+
+    public float getG() {
+        return g;
+    }
+
+    public float getB() {
+        return b;
     }
 
     // rotates a vector around the X-axis by a given angle

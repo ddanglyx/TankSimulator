@@ -63,6 +63,12 @@ public class GameServer {
         }
     }
 
+    public synchronized void broadcastBullet(String bulletData) {
+        for (ClientHandler client : clients) {
+            client.send("BULLET:" + bulletData);
+        }
+    }
+
     // NEW CODE: Method to update tank state and broadcast it to all clients
     public synchronized void updateTankState(String playerName, TankState state) {
         tankStates.put(playerName, state);
@@ -98,6 +104,7 @@ public class GameServer {
         private PrintWriter out;
         private GameServer server;
         private String playerName;
+        
 
         public ClientHandler(Socket socket, GameServer server) throws IOException {
             this.socket = socket;

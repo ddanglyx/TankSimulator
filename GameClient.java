@@ -5,6 +5,7 @@ import org.lwjgl.glfw.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import javax.sound.sampled.*;
 
 public class GameClient {
     // NEW CODE: Variables for player name and number, game state, and socket connection
@@ -101,12 +102,26 @@ public class GameClient {
 
     public void sendBulletState(Bullet bullet) {
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastBulletTime > BULLET_COOLDOWN) {
+        if (currentTime - lastBulletTime > 1000) { // 1-second cooldown
+            // Play the shoot.wav sound
+            try {
+                File soundFile = new File("shoot.wav"); // Ensure this file exists in the working directory
+                AudioInputStream audioStream = AudioSystem.getAudioInputStream(soundFile);
+                Clip clip = AudioSystem.getClip();
+                clip.open(audioStream);
+                clip.start();
+            } catch (Exception e) {
+                System.err.println("Error playing shoot.wav: " + e.getMessage());
+            }
+    
+            // Send bullet data to the server
             String bulletData = String.format("%f,%f,%f,%f,%f,%f,%f,%f,%f",
                 bullet.getX(), bullet.getY(), bullet.getZ(),
                 bullet.getDirectionX(), bullet.getDirectionY(), bullet.getDirectionZ(),
                 bullet.getR(), bullet.getG(), bullet.getB());
             out.println("BULLET:" + bulletData);
+    
+            // Update the last bullet time
             lastBulletTime = currentTime;
         }
     }
