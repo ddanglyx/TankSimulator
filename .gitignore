@@ -448,7 +448,6 @@ lwjgl-release-3.3.4-custom/bgfx_license.txt
 lwjgl-release-3.3.4-custom/assimp_license.txt
 .lwjgl/3.3.6+1/x64/lwjgl.dll
 .lwjgl/3.3.6+1/x64/glfw.dll
-.vscode
 .lwjgl
 .idea
 *.iml

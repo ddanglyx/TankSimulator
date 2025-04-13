@@ -24,6 +24,7 @@ import java.nio.FloatBuffer;
 import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
+import javax.sound.sampled.*;
 import java.util.LinkedList;
 import java.util.Map;
 
@@ -246,7 +247,7 @@ public class TankSimulation {
     }
 
     // NEW CODE: updateGameState method to handle tank movement and network state
-    private void updateGameState() {
+    private void updateGameState() throws Exception {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
         Tank remoteTank = tanks.get(localIndex == 0 ? 1 : 0);
@@ -480,7 +481,7 @@ public class TankSimulation {
     }
 
     // NEW CODE: updateTankMovement method to handle local tank movement
-    private void updateTankMovement() {
+    private void updateTankMovement() throws Exception {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
 
@@ -641,10 +642,15 @@ class Tank {
     public void fireBullet(Terrain terrain, List<Bullet> bullets) {
         long currentTime = System.currentTimeMillis(); // Get the current time in milliseconds
         if (currentTime - lastBulletFiredTime >= 1000) { // Check if at least 1 second has passed
-            Bullet bullet = new Bullet(this, terrain);
-            bullets.add(bullet);
-            lastBulletFiredTime = currentTime; // Update the last fired time
-            System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+            try {
+                Bullet bullet = new Bullet(this, terrain);
+                bullets.add(bullet);
+                lastBulletFiredTime = currentTime; // Update the last fired time
+                System.out.println("Bullet fired from tank at position: " + x + ", " + y + ", " + z);
+            } catch (Exception e) {
+                System.err.println("Failed to fire bullet: " + e.getMessage());
+                e.printStackTrace();
+            }
         } else {
             System.out.println("Cannot fire yet. Please wait.");
         }
@@ -1292,8 +1298,7 @@ class Terrain {
 
             // Check if the point (x, z) is inside the triangle
             if (isPointInTriangle(x, z, v1X, v1Z, v2X, v2Z, v3X, v3Z)) {
-                // If the point is in the triangle, calculate the height using barycentric
-                // interpolation
+                // If the point is in the triangle, calculate the height using barycentric interpolation
                 return interpolateHeight(x, z, v1X, v1Y, v1Z, v2X, v2Y, v2Z, v3X, v3Y, v3Z);
             }
         }
@@ -1341,17 +1346,40 @@ class Terrain {
 
 class Bullet {
     private static final float SPEED = 0.1f; // Speed of the bullet
-    private static final int bulletTextureId = loadImage("bullet.png");
+    private static final int bulletTextureId = ImageLoader.loadImage("bullet.png");
+    private static final File audioFile = new File("pew.wav"); // fire sound
 
     private float x, y, z; // Bullet's position
     private float r, g, b; // Bullet's color
     private float directionX, directionY, directionZ; // Direction of the bullet
 
-    public Bullet(Tank tank, Terrain terrain) {
+    public Bullet(Tank tank, Terrain terrain) throws Exception {
         // first just getting the rgb because that's easy
         this.r = tank.getR();
         this.g = tank.getG();
         this.b = tank.getB();
+
+        // making bullet sound
+        AudioInputStream ais = AudioSystem.getAudioInputStream(audioFile);
+        AudioFormat aisFormat = ais.getFormat();
+        AudioFormat supportedFormat = new AudioFormat(
+                AudioFormat.Encoding.PCM_SIGNED,
+                aisFormat.getSampleRate(),
+                16,
+                aisFormat.getChannels(),
+                aisFormat.getChannels() * 2,
+                aisFormat.getSampleRate(),
+                true
+        );
+        ais = AudioSystem.getAudioInputStream(supportedFormat, ais);
+
+        Clip clip = AudioSystem.getClip();
+        clip.open(ais);
+
+        FloatControl masterGain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+        masterGain.setValue(-20.0f);
+
+        clip.start();
 
         // the coords of the tank
         float tankX = tank.getX();
@@ -1476,8 +1504,44 @@ class Bullet {
         };
     }
 
+    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
+    // but there some of the values besides average height are still needed. This only returns averageHeight.
+    public float getAverageHeight(Tank tank, Terrain terrain) {
+        int numWheelsPerSide = tank.getNumWheelsPerSide();
+        float tankLength = tank.getTankLength();
+
+        // Number of wheels per side
+        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
+
+        // Calculate the heights of all wheels
+        float[] leftWheelHeights = new float[numWheelsPerSide];
+        float[] rightWheelHeights = new float[numWheelsPerSide];
+
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
+            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
+            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
+        }
+
+        // Calculate the average height of the tank body (based on wheel heights)
+        float totalHeight = 0.0f;
+        for (int i = 0; i < numWheelsPerSide; i++) {
+            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
+        }
+
+        return totalHeight / (numWheelsPerSide * 2);
+    }
+
+    // normalizes a vector to have a magnitude of 1.
+    public float[] normalize(float[] vector) {
+        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
+    }
+}
+
+class ImageLoader {
     // added by Ethan; loads an image from path as a texture id
-    private static int loadImage(String imagePath) {
+    public static int loadImage(String imagePath) {
         STBImage.stbi_set_flip_vertically_on_load(true);
 
         IntBuffer width = BufferUtils.createIntBuffer(1);
@@ -1521,39 +1585,5 @@ class Bullet {
         STBImage.stbi_image_free(image);
 
         return textureID;
-    }
-
-    // calculations for getting the average height of the tank. This is also done in the tank class outside of a function,
-    // but there some of the values besides average height are still needed. This only returns averageHeight.
-    public float getAverageHeight(Tank tank, Terrain terrain) {
-        int numWheelsPerSide = tank.getNumWheelsPerSide();
-        float tankLength = tank.getTankLength();
-
-        // Number of wheels per side
-        float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
-
-        // Calculate the heights of all wheels
-        float[] leftWheelHeights = new float[numWheelsPerSide];
-        float[] rightWheelHeights = new float[numWheelsPerSide];
-
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            float wheelZ = -tankLength / 2 + i * wheelSpacing; // Z position of the wheel
-            leftWheelHeights[i] = terrain.getTerrianHeightAt(x - 0.9f, z + wheelZ); // Left wheel height
-            rightWheelHeights[i] = terrain.getTerrianHeightAt(x + 0.9f, z + wheelZ); // Right wheel height
-        }
-
-        // Calculate the average height of the tank body (based on wheel heights)
-        float totalHeight = 0.0f;
-        for (int i = 0; i < numWheelsPerSide; i++) {
-            totalHeight += leftWheelHeights[i] + rightWheelHeights[i];
-        }
-
-        return totalHeight / (numWheelsPerSide * 2);
-    }
-
-    // normalizes a vector to have a magnitude of 1.
-    public float[] normalize(float[] vector) {
-        float length = (float) Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-        return new float[] { vector[0] / length, vector[1] / length, vector[2] / length };
     }
 }
