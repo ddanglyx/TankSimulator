@@ -10,8 +10,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.IntBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.io.File;
 import javax.sound.sampled.*;
 
@@ -25,8 +24,6 @@ import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
 
 import javax.sound.sampled.*;
-import java.util.LinkedList;
-import java.util.Map;
 
 public class TankSimulation {
     private long window;
@@ -199,6 +196,12 @@ public class TankSimulation {
                 System.out.println("Local tank (Blue) at: " + localTank.getX() + "," + localTank.getZ());
             }
 
+            // initializing NPC
+            NPCTank npc = new NPCTank(2, 0, 2, 0.0f, 1.0f, 0.0f); // Green tank (npc)
+            tanks.add(npc);
+            npc.initializeTargetPositions();
+            System.out.println("NPC at: " + npc.getX() + "," + npc.getZ());
+
             // Debug print tank list
             System.out.println("\nFinal tank list:");
             for (int i = 0; i < tanks.size(); i++) {
@@ -257,6 +260,7 @@ public class TankSimulation {
         int localIndex = client.getPlayerNumber() - 1;
         Tank localTank = tanks.get(localIndex);
         Tank remoteTank = tanks.get(localIndex == 0 ? 1 : 0);
+        NPCTank npc = (NPCTank) tanks.getLast();
 
         // Update local tank movement
         updateTankMovement();
@@ -271,6 +275,10 @@ public class TankSimulation {
                 i--;
             }
         }
+
+        // update npc
+        npc.update();
+        System.out.println("NPC at" + npc.getX() + " " + npc.getZ());
 
         // Only update and send state for local tank
         if (localTank != null) {
@@ -591,14 +599,14 @@ class Tank {
 
     private static final float LERP_FACTOR = 0.1f;
     private float r, g, b; // Color of the tank
-    private float speed = 0; // Current speed
+    protected float speed = 0; // Current speed
     private float angle = 0; // Direction the tank is facing
     private float maxSpeed = 0.1f;
     private float acceleration = 0.01f;
     private float friction = 0.98f;
     private float turnSpeed = 2.0f; // Speed of turning
     // New member variables for turret
-    private float turretAngle = 0.0f; // Turret rotation angle (initially facing forward)
+    protected float turretAngle = 0.0f; // Turret rotation angle (initially facing forward)
     private float turretRotationSpeed = 2.0f; // Speed at which the turret rotates (adjust as needed)
     private float turretLength = 1.2f;
     private float turretWidth = 0.85f;
@@ -615,10 +623,10 @@ class Tank {
     int numWheelsPerSide = 8;
     float tankLength = 3.5f; // Length of the tank body
 
-    private float barrelElevation = 0.0f; // Barrel elevation angle
+    protected float barrelElevation = 0.0f; // Barrel elevation angle
     private float barrelElevationSpeed = 1.0f; // Speed of barrel movement
-    private final float MIN_ELEVATION = -10.0f; // Minimum elevation angle (downward)
-    private final float MAX_ELEVATION = 15.0f; // Maximum elevation angle (upward)
+    protected final float MIN_ELEVATION = -10.0f; // Minimum elevation angle (downward)
+    protected final float MAX_ELEVATION = 15.0f; // Maximum elevation angle (upward)
 
     public void rotateTurretLeft() {
         turretAngle += turretRotationSpeed; // Adjust this according to how much you want to rotate
@@ -1143,6 +1151,238 @@ class Tank {
         this.targetAngle = this.angle;
 
         System.out.println("Tank position synced to: " + x + "," + z);
+    }
+}
+
+class NPCTank extends Tank {
+    private static Random rand = new Random();
+
+    private float targetX;
+    private float targetZ;
+    private float maxSpeed = 0.15f;            // Slightly slower than player
+    private float acceleration = 0.01f;
+    private float preferredDistance = 10.0f;   // Distance to maintain from player
+    private float minDistance = 6.0f;          // Minimum distance before backing up
+    private float maxDistance = 15.0f;         // Maximum distance before approaching
+    private float patrolRadius = 3.0f;         // Radius around target to patrol when at desired distance
+    private float patrolAngle = 0.0f;          // Current angle in patrol pattern
+    private float patrolSpeed = 0.5f;          // Speed of patrol movement
+    private float lastFireTime = 0;            // Time of last shot
+    private float fireRate = 3000;             // Milliseconds between shots (3 seconds)
+
+    public NPCTank(float x, float y, float z, float r, float g, float b) {
+        super(x, y, z, r, g, b);
+        this.targetX = x;
+        this.targetZ = z;
+        // Set tank as non-remote since it's handled by the server logic
+        setRemote(false);
+    }
+
+    public void setTarget(float targetX, float targetZ) {
+        this.targetX = targetX;
+        this.targetZ = targetZ;
+    }
+
+    /**
+     * Sets the player tank as the target to follow
+     * @param playerTank The player's tank
+     */
+    public void trackPlayer(Tank playerTank) throws Exception {
+        if (playerTank != null) {
+            float playerX = playerTank.getX();
+            float playerZ = playerTank.getZ();
+
+            // Calculate the distance to the player
+            float dx = playerX - getX();
+            float dz = playerZ - getZ();
+            float distanceToPlayer = (float) Math.sqrt(dx * dx + dz * dz);
+
+            // Calculate the angle to the player
+            float angleToPlayer = (float) Math.toDegrees(Math.atan2(dx, dz));
+
+            // Point turret at player regardless of distance
+            pointTurretAt(playerX, playerZ);
+
+            // Based on distance, either approach, maintain distance, or patrol
+            if (distanceToPlayer < minDistance) {
+                // Too close, back away
+                float retreatAngle = angleToPlayer + 180; // Opposite direction
+                if (retreatAngle > 360) retreatAngle -= 360;
+
+                // Set a target point behind the NPC tank
+                float retreatDistance = 2.0f;
+                float retreatX = getX() - retreatDistance * (float)Math.sin(Math.toRadians(angleToPlayer));
+                float retreatZ = getZ() - retreatDistance * (float)Math.cos(Math.toRadians(angleToPlayer));
+
+                setTarget(retreatX, retreatZ);
+            } else if (distanceToPlayer > maxDistance) {
+                // Too far, approach player
+                setTarget(playerX, playerZ);
+            } else {
+                // At a good distance, patrol around the player
+                patrolAroundTarget(playerX, playerZ);
+            }
+
+            // Try to fire at the player if we're in range and facing them
+            trackPlayer(playerTank);
+            tryFireAtPlayer(playerTank);
+        }
+    }
+
+    /**
+     * Creates a patrol path around the target
+     */
+    private void patrolAroundTarget(float centerX, float centerZ) {
+        // Update patrol angle
+        patrolAngle += patrolSpeed;
+        if (patrolAngle >= 360) patrolAngle -= 360;
+
+        // Calculate position on a circle around the target
+        float patrolX = centerX + patrolRadius * (float)Math.sin(Math.toRadians(patrolAngle));
+        float patrolZ = centerZ + patrolRadius * (float)Math.cos(Math.toRadians(patrolAngle));
+
+        setTarget(patrolX, patrolZ);
+    }
+
+    /**
+     * Aims the turret at the specified coordinates
+     */
+    private void pointTurretAt(float targetX, float targetZ) {
+        // Calculate angle from tank to target
+        float dx = targetX - getX();
+        float dz = targetZ - getZ();
+        float targetAngle = (float) Math.toDegrees(Math.atan2(dx, dz));
+
+        // Calculate the difference between current tank angle and target angle
+        float tankAngle = getAngle();
+        float relativeAngle = targetAngle - tankAngle;
+
+        // Normalize the angle difference
+        if (relativeAngle > 180) relativeAngle -= 360;
+        if (relativeAngle < -180) relativeAngle += 360;
+
+        // Set the turret angle to match the relative angle
+        setTurretAngle(relativeAngle);
+
+        // Adjust barrel elevation based on distance
+        float distance = (float) Math.sqrt(dx * dx + dz * dz);
+        float elevation = calculateElevationForDistance(distance);
+        setBarrelElevation(elevation);
+    }
+
+    /**
+     * Calculate the barrel elevation angle needed to hit a target at the given distance
+     */
+    private float calculateElevationForDistance(float distance) {
+        // Simple formula to estimate the needed elevation
+        // This would ideally be a more sophisticated ballistics calculation
+        float elevation = 5.0f;
+
+        if (distance < 8.0f) {
+            elevation = 0.0f;  // Almost flat for close targets
+        } else if (distance < 15.0f) {
+            elevation = 5.0f;  // Slight elevation for medium distance
+        } else {
+            elevation = 10.0f; // More elevation for long distance
+        }
+
+        return elevation;
+    }
+
+    /**
+     * Attempts to fire at the player if conditions are right
+     */
+    private void tryFireAtPlayer(Tank playerTank) throws Exception {
+        // Check if enough time has passed since last shot
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastFireTime < fireRate) {
+            return;
+        }
+
+        // Check if we're facing the player
+        float dx = playerTank.getX() - getX();
+        float dz = playerTank.getZ() - getZ();
+        float targetAngle = (float) Math.toDegrees(Math.atan2(dx, dz));
+        float angleDiff = Math.abs(targetAngle - (getAngle() + getTurretAngle()));
+
+        // Normalize the angle difference
+        if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+        // If we're facing the player (within 10 degrees), fire!
+        if (angleDiff < 10) {
+            fireBullet(null, null); // The bullet list will be handled by the game engine
+            lastFireTime = currentTime;
+        }
+    }
+
+    @Override
+    public void update() {
+        // Move towards the target position
+        float dx = targetX - getX();
+        float dz = targetZ - getZ();
+
+        if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1) {
+            targetX = (float) rand.nextInt(100);
+            targetZ = (float) rand.nextInt(100);
+            dx = targetX - getX();
+            dz = targetZ - getZ();
+        }
+
+        float distance = (float) Math.sqrt(dx * dx + dz * dz);
+
+        if (distance > 0.5f) { // Only move if we're not already at the target
+            float targetAngle = (float) Math.toDegrees(Math.atan2(dx, dz));
+            float angleDifference = targetAngle - getAngle();
+
+            // Normalize the angle difference
+            if (angleDifference > 180) angleDifference -= 360;
+            if (angleDifference < -180) angleDifference += 360;
+
+            // Turn towards the target
+            if (Math.abs(angleDifference) > 5) { // Add a small threshold to prevent oscillation
+                if (angleDifference > 0) {
+                    turnLeft();
+                } else {
+                    turnRight();
+                }
+            }
+
+            // Move forward if facing the target
+            if (Math.abs(angleDifference) < 60) {
+                accelerate();
+            } else if (Math.abs(angleDifference) > 120) {
+                // Move backward if facing away from the target
+                decelerate();
+            }
+        } else {
+            // Stop if close to the target
+            if (Math.abs(getSpeed()) > 0.01f) {
+                if (getSpeed() > 0) {
+                    decelerate();
+                } else {
+                    accelerate();
+                }
+            }
+        }
+
+        // Apply the default update logic
+        super.update();
+    }
+
+    // Need to add getter and setter for speed and turret angle
+    private float getSpeed() {
+        // Access the protected speed variable
+        return super.speed;
+    }
+
+    private void setTurretAngle(float angle) {
+        // We need to set the turret angle relative to the tank body
+        turretAngle = angle;
+    }
+
+    private void setBarrelElevation(float elevation) {
+        // Set the barrel elevation within limits
+        barrelElevation = Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, elevation));
     }
 }
 
