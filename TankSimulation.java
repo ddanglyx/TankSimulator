@@ -39,9 +39,6 @@ public class TankSimulation {
     private String playerName;
     private boolean autoStart;
 
-    // NEW CODE:
-
-    
     // New constructor accepting the player's name, autoStart flag, and GameClient
     public TankSimulation(String playerName, boolean autoStart, GameClient client) {
         this.playerName = playerName;
@@ -53,7 +50,8 @@ public class TankSimulation {
             AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
             Clip clip = AudioSystem.getClip();
             clip.open(audioStream);
-            clip.loop(Clip.LOOP_CONTINUOUSLY); // This makes it loop forever
+            clip.loop(Clip.LOOP_CONTINUOUSLY); // Aidan
+            clip.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -535,6 +533,29 @@ class Tank {
     private float targetX, targetY, targetZ, targetAngle;
     private boolean isRemote = false;
     private long lastBulletFiredTime = 0; // Track the last time a bullet was fired
+    private static final int wheelTextureId = loadImage("wheel.png"); // Load the wheel texture
+
+    private static int loadImage(String imagePath) {
+        STBImage.stbi_set_flip_vertically_on_load(true);
+    
+        IntBuffer width = BufferUtils.createIntBuffer(1);
+        IntBuffer height = BufferUtils.createIntBuffer(1);
+        IntBuffer channels = BufferUtils.createIntBuffer(1);
+    
+        ByteBuffer image = STBImage.stbi_load(imagePath, width, height, channels, 4);
+        if (image == null) {
+            throw new RuntimeException("Failed to load texture: " + imagePath);
+        }
+    
+        int textureID = GL11.glGenTextures();
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureID);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, width.get(0), height.get(0), 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, image);
+    
+        STBImage.stbi_image_free(image);
+        return textureID;
+    }
 
     public boolean isRemote() {
         return isRemote;
@@ -977,107 +998,120 @@ class Tank {
         GL11.glPopMatrix();
     }
 
-    private void renderWheel() {
+    private void renderWheels(Terrain terrain) {
         float radius = 0.3f;
         float width = 0.5f;
         int numSegments = 36;
-
-        GL11.glColor3f(0.2f, 0.2f, 0.2f); // Dark gray for wheels
-        GL11.glShadeModel(GL11.GL_SMOOTH);
-
-        FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] {0.5f, 0.5f, 0.5f, 1.0f});
-        wheelSpecular.flip();
-        GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, wheelSpecular);
-        GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 16.0f); // Low shininess for wheels
-
-        GL11.glPushMatrix();
-        GL11.glRotatef(90, 0, 1, 0);
-
-        // Front face (at z = -width/2)
-        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
-        GL11.glVertex3f(0.0f, 0.0f, -width / 2); // Center of the circle
-        for (int i = 0; i <= numSegments; i++) {
-            double angle = 2 * Math.PI * i / numSegments;
-            GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, -width / 2);
-        }
-        GL11.glEnd();
-
-        // Rear face (at z = +width/2)
-        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
-        GL11.glVertex3f(0.0f, 0.0f, width / 2); // Center of the circle
-        for (int i = 0; i <= numSegments; i++) {
-            double angle = 2 * Math.PI * i / numSegments;
-            GL11.glVertex3f((float) Math.cos(angle) * radius, (float) Math.sin(angle) * radius, width / 2);
-        }
-        GL11.glEnd();
-
-        GL11.glBegin(GL11.GL_QUAD_STRIP);
-        for (int i = 0; i <= numSegments; i++) {
-            double angle = 2 * Math.PI * i / numSegments;
-            float x = (float) Math.cos(angle) * radius;
-            float y = (float) Math.sin(angle) * radius;
-
-            // Set normals to make wheel sides visible
-            GL11.glNormal3f(x, y, 0);
-            GL11.glVertex3f(x, y, -width / 2);
-            GL11.glVertex3f(x, y, width / 2);
-        }
-        GL11.glEnd();
-        GL11.glPopMatrix();
-    }
-
-    private void renderWheels(Terrain terrain) {
-        GL11.glColor3f(0.0f, 0.0f, 0.0f); // Black color for wheels
-
+    
         // Define the wheel height offset
         float wheelHeightOffset = 0.8f; // Lower the wheels by this amount relative to the tank body
         float wheelSpacing = tankLength / (numWheelsPerSide - 1); // Spacing between wheels
-
+    
+        // Helper function to render a single wheel
+        Runnable renderSingleWheel = () -> {
+            // Enable 2D textures and bind the wheel texture
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, wheelTextureId);
+    
+            GL11.glColor3f(1.0f, 1.0f, 1.0f); // Set color to white to display the texture
+            GL11.glShadeModel(GL11.GL_SMOOTH);
+    
+            FloatBuffer wheelSpecular = BufferUtils.createFloatBuffer(4).put(new float[] { 0.5f, 0.5f, 0.5f, 1.0f });
+            wheelSpecular.flip();
+            GL11.glMaterialfv(GL11.GL_FRONT, GL11.GL_SPECULAR, wheelSpecular);
+            GL11.glMaterialf(GL11.GL_FRONT, GL11.GL_SHININESS, 16.0f); // Low shininess for wheels
+    
+            GL11.glPushMatrix();
+            GL11.glRotatef(90, 0, 1, 0);
+    
+            // Front face (at z = -width/2)
+            GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+            GL11.glTexCoord2f(0.5f, 0.5f); // Center of the texture
+            GL11.glVertex3f(0.0f, 0.0f, -width / 2); // Center of the circle
+            for (int i = 0; i <= numSegments; i++) {
+                double angle = 2 * Math.PI * i / numSegments;
+                float x = (float) Math.cos(angle) * radius;
+                float y = (float) Math.sin(angle) * radius;
+                GL11.glTexCoord2f((x / radius + 1) / 2, (y / radius + 1) / 2); // Map texture coordinates
+                GL11.glVertex3f(x, y, -width / 2);
+            }
+            GL11.glEnd();
+    
+            // Rear face (at z = +width/2)
+            GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+            GL11.glTexCoord2f(0.5f, 0.5f); // Center of the texture
+            GL11.glVertex3f(0.0f, 0.0f, width / 2); // Center of the circle
+            for (int i = 0; i <= numSegments; i++) {
+                double angle = 2 * Math.PI * i / numSegments;
+                float x = (float) Math.cos(angle) * radius;
+                float y = (float) Math.sin(angle) * radius;
+                GL11.glTexCoord2f((x / radius + 1) / 2, (y / radius + 1) / 2); // Map texture coordinates
+                GL11.glVertex3f(x, y, width / 2);
+            }
+            GL11.glEnd();
+    
+            // Side faces (connecting front and rear)
+            GL11.glBegin(GL11.GL_QUAD_STRIP);
+            for (int i = 0; i <= numSegments; i++) {
+                double angle = 2 * Math.PI * i / numSegments;
+                float x = (float) Math.cos(angle) * radius;
+                float y = (float) Math.sin(angle) * radius;
+    
+                GL11.glNormal3f(x, y, 0); // Set normals to make wheel sides visible
+                GL11.glVertex3f(x, y, -width / 2);
+                GL11.glVertex3f(x, y, width / 2);
+            }
+            GL11.glEnd();
+    
+            GL11.glPopMatrix();
+            GL11.glDisable(GL11.GL_TEXTURE_2D); // Disable 2D textures
+        };
+    
         // Render wheels on the left side
-        for (int i = 0; i <= numWheelsPerSide; i++) {
+        for (int i = 0; i < numWheelsPerSide; i++) {
             float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
             float wheelY = terrain.getTerrianHeightAt(this.getX() - 0.9f, this.getZ() + wheelZ); // Get terrain height
-
+    
             GL11.glPushMatrix();
             GL11.glTranslatef(-0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
-
+    
             // Make the front wheels smaller and raised up
-            if (i == 0) { // First two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+            if (i == 0) { // First wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheel slightly
             }
-
+    
             // Make the back wheels smaller and raised up
-            if (i == numWheelsPerSide) { // Last two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
+            if (i == numWheelsPerSide - 1) { // Last wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheel slightly
             }
-
-            renderWheel();
+    
+            renderSingleWheel.run(); // Render the wheel
             GL11.glPopMatrix();
         }
-
+    
         // Render wheels on the right side
-        for (int i = 0; i <= numWheelsPerSide; i++) {
+        for (int i = 0; i < numWheelsPerSide; i++) {
             float wheelZ = -tankLength / 2 + i * wheelSpacing; // Calculate Z position of the wheel
             float wheelY = terrain.getTerrianHeightAt(this.getX() + 0.9f, this.getZ() + wheelZ); // Get terrain height
-
+    
             GL11.glPushMatrix();
             GL11.glTranslatef(0.9f, wheelY + 0.5f - wheelHeightOffset, wheelZ); // Position the wheel
-
+    
             // Make the front wheels smaller and raised up
-            if (i == 0) { // First two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheels slightly
+            if (i == 0) { // First wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the front wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the front wheel slightly
             }
-
+    
             // Make the back wheels smaller and raised up
-            if (i == numWheelsPerSide) { // Last two wheels
-                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheels
-                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheels slightly
+            if (i == numWheelsPerSide - 1) { // Last wheel
+                GL11.glScalef(0.8f, 0.8f, 0.8f); // Scale down the back wheel
+                GL11.glTranslatef(0.0f, 0.1f, 0.0f); // Raise the back wheel slightly
             }
-
-            renderWheel();
+    
+            renderSingleWheel.run(); // Render the wheel
             GL11.glPopMatrix();
         }
     }
