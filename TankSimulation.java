@@ -51,7 +51,12 @@ public class TankSimulation {
             AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
             Clip clip = AudioSystem.getClip();
             clip.open(audioStream);
-            clip.loop(Clip.LOOP_CONTINUOUSLY); // Aidan
+        
+            // Lower the volume using FloatControl
+            FloatControl volumeControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            volumeControl.setValue(-10.0f); // Reduce volume by 10 decibels (adjust as needed)
+        
+            clip.loop(Clip.LOOP_CONTINUOUSLY); // Loop the music
             clip.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -1347,7 +1352,7 @@ class Terrain {
 class Bullet {
     private static final float SPEED = 0.1f; // Speed of the bullet
     private static final int bulletTextureId = ImageLoader.loadImage("bullet.png");
-    private static final File audioFile = new File("pew.wav"); // fire sound
+    private static final File audioFile = new File("shoot.wav"); // fire sound
 
     private float x, y, z; // Bullet's position
     private float r, g, b; // Bullet's color
