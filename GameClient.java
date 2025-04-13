@@ -7,6 +7,7 @@ import java.net.*;
 import java.util.*;
 
 public class GameClient {
+    // NEW CODE: Variables for player name and number, game state, and socket connection
     private String playerName;
     private int playerNumber;
     private boolean gameStarted = false;
@@ -50,7 +51,7 @@ public class GameClient {
                             break; // Exit the read loop after receiving START
                         }
                     }
-                    // Start a new thread for handling game updates after START
+                    // NEW CODE: Start a new thread for handling game updates after START
                     if (gameStarted) {
                         new Thread(() -> {
                             try {
@@ -71,15 +72,18 @@ public class GameClient {
                 }
             }).start();
 
+        // NEW CODE: Debugging if failed to connect to server
         } catch (IOException e) {
             throw new RuntimeException("Failed to connect to server: " + e.getMessage(), e);
         }
     }
 
+    // NEW CODE: Factory method to initialize the client with a player name
     public static GameClient initializeClient(String playerName) {
         return new GameClient(playerName);
     }
 
+    // NEW CODE: Getters for player name, number, and game state
     public boolean isGameStarted() {
         return gameStarted;
     }
@@ -92,6 +96,7 @@ public class GameClient {
         out.println(state.toString());
     }
 
+    // NEW CODE: parseTankStates method to handle incoming tank states from the server
     private void parseTankStates(String data) {
         // Format "playerName:x,y,z,angle;playerName2:..."
         String[] segments = data.split(";");
@@ -105,10 +110,12 @@ public class GameClient {
         otherTanks = updated;
     }
 
+    // NEW CODE: getOtherTanks method to get the current state of other tanks
     public Map<String, TankState> getOtherTanks() {
         return otherTanks;
     }
 
+    // NEW CODE: stop method to close the socket connection
     public void stop() {
         try {
             socket.close();
@@ -117,6 +124,7 @@ public class GameClient {
         }
     }
 
+    // NEW CODE: Main method to run the client and connect to the server
     public static void main(String[] args) {
         java.util.Scanner scanner = new java.util.Scanner(System.in);
         System.out.print("Enter your name: ");
