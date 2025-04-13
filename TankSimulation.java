@@ -1242,6 +1242,7 @@ class Model {
 
 class Terrain {
     private Model model;
+    private static final int textureId = ImageLoader.loadImage("epic_grass.png");
 
     public Terrain(String objFilePath) {
         File file = new File(objFilePath);
@@ -1277,6 +1278,8 @@ class Terrain {
         GL11.glMaterialfv(GL11.GL_FRONT_AND_BACK, GL11.GL_DIFFUSE, terrainDiffuse);
         GL11.glMaterialfv(GL11.GL_FRONT_AND_BACK, GL11.GL_SPECULAR, terrainSpecular);
         GL11.glMaterialf(GL11.GL_FRONT_AND_BACK, GL11.GL_SHININESS, 10.0f); // Lower shininess for a more matte look
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
 
         float[] vertices = model.getVertices();
         float[] normals = model.getNormals();
@@ -1289,13 +1292,18 @@ class Terrain {
             int vertexIndex3 = indices[i + 2] * 3;
 
             GL11.glNormal3f(normals[vertexIndex1], normals[vertexIndex1 + 1], normals[vertexIndex1 + 2]);
+            GL11.glTexCoord2f(vertices[vertexIndex1], vertices[vertexIndex1 + 2]);
             GL11.glVertex3f(vertices[vertexIndex1], vertices[vertexIndex1 + 1], vertices[vertexIndex1 + 2]);
             GL11.glNormal3f(normals[vertexIndex2], normals[vertexIndex2 + 1], normals[vertexIndex2 + 2]);
+            GL11.glTexCoord2f(vertices[vertexIndex2], vertices[vertexIndex2 + 2]);
             GL11.glVertex3f(vertices[vertexIndex2], vertices[vertexIndex2 + 1], vertices[vertexIndex2 + 2]);
             GL11.glNormal3f(normals[vertexIndex3], normals[vertexIndex3 + 1], normals[vertexIndex3 + 2]);
+            GL11.glTexCoord2f(vertices[vertexIndex3], vertices[vertexIndex3 + 2]);
             GL11.glVertex3f(vertices[vertexIndex3], vertices[vertexIndex3 + 1], vertices[vertexIndex3 + 2]);
         }
         GL11.glEnd();
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
     }
 
     public float getTerrianHeightAt(float x, float z) {
